@@ -1,0 +1,12 @@
+name: simple-python-script
+desc: Program description
+cmd: python main.py
+env:
+  python:
+    type: auto
+    requirements-file: requirements.txt # передать в DataSphere код и зависимости pip
+cloud-instance-type: c1.4
+s3-mounts:
+  - bt15mrdpleurdj659o9m  # например: abcdef1234567890
+flags:
+  - attach-project-disk 

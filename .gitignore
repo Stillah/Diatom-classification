@@ -1,0 +1,4 @@
+authorized_key.json
+__pycache__
+.venv
+.vscode
