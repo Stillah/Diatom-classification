@@ -1,43 +1,11 @@
 import os
 import shutil
-import random
 import xml.etree.ElementTree as ET
 from sklearn.model_selection import train_test_split
 from pathlib import Path
 import cv2
+from src.SC_Diatomnet.config import *
 
-# ============================
-# CONFIGURATION – CHANGE THESE PATHS
-# ============================
-ROOT = Path("/job/s3/bt15mrdpleurdj659o9m")
-
-# List contents of ROOT
-if ROOT.exists() and ROOT.is_dir():
-    print(f"\nContents of ROOT ({ROOT}):")
-    for item in ROOT.iterdir():
-        print(f"  {item.name}")
-else:
-    print(f"\nROOT path '{ROOT}' does not exist or is not a directory.")
-
-
-
-DATASET_ROOT = ROOT / "raw"          # Folder containing images and annotations
-OUTPUT_ROOT = ROOT / "yolov11"           # Where YOLO dataset will be created
-SEED = 42
-random.seed(SEED)
-
-# Six species used in the paper
-TARGET_CLASSES = [
-    "Encyonema silesiacum",
-    "Fragilaria recapitellata",
-    "Gomphonema olivaceum",
-    "Navicula cryptotenella",
-    "Navicula reichardtiana",
-    "Planothidium lanceolatum"
-]
-
-# Create class-to-id mapping
-class_to_id = {name: idx for idx, name in enumerate(TARGET_CLASSES)}
 
 # ============================
 # FUNCTIONS
