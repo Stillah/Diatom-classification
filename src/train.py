@@ -1,0 +1,1 @@
+"""Train and save SC-Diatomnet model."""

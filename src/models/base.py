@@ -1,6 +1,6 @@
+
 from typing import Protocol
 from abc import ABC, abstractmethod 
-
 
 
 class SegmentModel(Protocol):

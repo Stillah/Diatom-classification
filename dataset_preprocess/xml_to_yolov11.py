@@ -4,7 +4,7 @@ import xml.etree.ElementTree as ET
 from sklearn.model_selection import train_test_split
 from pathlib import Path
 import cv2
-from src.SC_Diatomnet.config import *
+from config import *
 
 
 # ============================
