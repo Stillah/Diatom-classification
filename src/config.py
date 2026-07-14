@@ -1,11 +1,12 @@
 import numpy as np
 from pathlib import Path
-
+import torch 
 STORAGE_ID = "bt15mrdpleurdj659o9m"
 ROOT = Path(f"/job/s3/{STORAGE_ID}")
 DATASET_ROOT = ROOT / "raw"          # Folder containing images and annotations
 OUTPUT_ROOT = ROOT / "yolov11"           # Where YOLO dataset will be created
 SEED = 42
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 np.random.seed(SEED)
 
 # Six species used in the paper

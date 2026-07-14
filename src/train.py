@@ -1,15 +1,18 @@
 """Train and save SC-Diatomnet model."""
 
-from src.models.YOLO.model import YOLOv11Baseline
+from src.models.SC_Diatomnet.models import YOLOv11Baseline
+from .config import DATASET_ROOT, DEVICE, OUTPUT_ROOT
 
-model = YOLOv11Baseline(
+
+if __name__ == '__main__':
+    model = YOLOv11Baseline(
     weights="yolo11n.pt",
-    device="cuda",
-)
+    device=DEVICE,
+    )
 
-model.train(
-    data="data.yaml",
-    epochs=200,
-    imgsz=640,
-    batch=16,
-)
+    model.train(
+        data=DATASET_ROOT / "data.yaml",
+        epochs=200,
+        imgsz=640,
+        batch=16,
+    )
