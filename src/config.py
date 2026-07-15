@@ -3,10 +3,10 @@ from pathlib import Path
 import torch 
 STORAGE_ID = "bt15mrdpleurdj659o9m"
 ROOT = Path(f"/job/s3/{STORAGE_ID}")
-DATASET_ROOT = ROOT / "raw"          # Folder containing images and annotations
+DATASET_ROOT = ROOT / "raw"              # Folder containing images and annotations
 OUTPUT_ROOT = ROOT / "yolov11"           # Where YOLO dataset will be created
 SEED = 42
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 np.random.seed(SEED)
 
 # Six species used in the paper
@@ -21,3 +21,17 @@ TARGET_CLASSES = [
 
 # Create class-to-id mapping
 class_to_id = {name: idx for idx, name in enumerate(TARGET_CLASSES)}
+
+
+TRAIN_CONFIG = {
+    "data": str(OUTPUT_ROOT / "data.yaml"),   # YOLO format dataset
+    "epochs": 100,
+    "imgsz": 640,
+    "batch": 16,
+    "lr0": 0.001,        # fine-tune
+    "patience": 10,      # stop if no improvement for 10 epochs
+    "cos_lr": True,
+    "warmup_epochs": 3,
+    "project": "diatoms",
+    "name": "v1",
+}
