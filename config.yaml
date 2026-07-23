@@ -3,7 +3,7 @@ desc: Program description
 cmd: |
   python3 -m pip install --upgrade pip
   pip install -r requirements-cloud.txt
-  python3 src/train_classifier.py
+  # python3 src/train_classifier.py  # закомментировать если не тренируете модель
   python3 src/evaluate.py
 inputs:
   - src/
