@@ -35,3 +35,15 @@ TRAIN_CONFIG = {
     "project": "diatoms",
     "name": "v1",
 }
+
+CLASSIFICATION_CONFIG = {
+    "dataset_root": str(OUTPUT_ROOT),   # YOLO-сплиты train/val/test с кропами
+    "epochs": 50,
+    "batch": 32,
+    "lr": 0.001,
+    "weight_decay": 1e-4,
+    "patience": 10,
+    "scheduler_patience": 2,
+    "num_workers": 2,
+    "save_path": str(OUTPUT_ROOT / "best_diatomnet.pth"),
+}
