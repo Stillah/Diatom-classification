@@ -1,10 +1,13 @@
 name: simple-python-script
 desc: Program description
 cmd: |
-  pip install ultralytics --no-deps
+  python3 -m pip install --upgrade pip
+  pip install -r requirements-cloud.txt
+  python3 src/train_classifier.py
   python3 src/evaluate.py
 inputs:
   - src/
+  - requirements-cloud.txt
 outputs:
   - runs/
 env:
@@ -13,4 +16,4 @@ cloud-instance-type: gt4.1 # T4, поменять на c1.4 если не тре
 s3-mounts:
   - bt15mrdpleurdj659o9m  # например: abcdef1234567890
 flags:
-  - attach-project-disk 
+  - attach-project-disk
