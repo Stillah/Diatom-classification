@@ -9,3 +9,4 @@ tqdm>=4.66.0
 torch>=2.1.0,<2.6.0
 torchvision>=0.16.0,<0.21.0
 ultralytics>=8.3.0,<9.0.0
+clearml>=1.17.0,<2.0.0
