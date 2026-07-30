@@ -1,5 +1,3 @@
-"""Обёртка DiatomNet для обучения и инференса классификации."""
-
 from __future__ import annotations
 
 from pathlib import Path
@@ -83,6 +81,37 @@ class DiatomNetClassifier:
 
         return running_loss / total, correct / total
 
+    @staticmethod
+    def _macro_precision_recall_f1(
+        y_true: List[int],
+        y_pred: List[int],
+        num_classes: int,
+    ) -> tuple[float, float, float]:
+        """Считает precision/recall/f1 по каждому классу и усредняет (macro)."""
+        precisions, recalls, f1s = [], [], []
+
+        for c in range(num_classes):
+            tp = sum(1 for t, p in zip(y_true, y_pred) if t == c and p == c)
+            fp = sum(1 for t, p in zip(y_true, y_pred) if t != c and p == c)
+            fn = sum(1 for t, p in zip(y_true, y_pred) if t == c and p != c)
+
+            precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
+            recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
+            f1 = (
+                2 * precision * recall / (precision + recall)
+                if (precision + recall) > 0 else 0.0
+            )
+
+            precisions.append(precision)
+            recalls.append(recall)
+            f1s.append(f1)
+
+        return (
+            sum(precisions) / num_classes,
+            sum(recalls) / num_classes,
+            sum(f1s) / num_classes,
+        )
+
     def train(self, train_cfg: Dict[str, Any]) -> Dict[str, Any]:
         """Обучает классификатор на кропах из YOLO-датасета."""
         train_loader, val_loader, _ = self._build_loaders(train_cfg)
@@ -162,8 +191,42 @@ class DiatomNetClassifier:
         loader = DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers)
         criterion = nn.CrossEntropyLoss()
 
-        val_loss, val_acc = self._run_epoch(self.model, loader, criterion, self.device)
-        return {"loss": val_loss, "accuracy": val_acc}
+        self.model.eval()
+        running_loss = 0.0
+        correct = 0
+        total = 0
+        all_preds: List[int] = []
+        all_labels: List[int] = []
+
+        with torch.no_grad():
+            for images, labels in tqdm(loader, leave=False):
+                images = images.to(self.device)
+                labels = labels.to(self.device)
+
+                outputs = self.model(images)
+                loss = criterion(outputs, labels)
+
+                running_loss += loss.item() * images.size(0)
+                predicted = outputs.argmax(dim=1)
+                total += labels.size(0)
+                correct += (predicted == labels).sum().item()
+
+                all_preds.extend(predicted.cpu().tolist())
+                all_labels.extend(labels.cpu().tolist())
+
+        val_loss = running_loss / total
+        val_acc = correct / total
+        precision, recall, f1 = self._macro_precision_recall_f1(
+            all_labels, all_preds, self.num_classes,
+        )
+
+        return {
+            "loss": val_loss,
+            "accuracy": val_acc,
+            "precision_macro": precision,
+            "recall_macro": recall,
+            "f1_macro": f1,
+        }
 
     def classify(self, image: Union[str, Path, np.ndarray]) -> str:
         """Классифицирует одно изображение (кроп) и возвращает название вида."""
