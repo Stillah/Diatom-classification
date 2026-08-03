@@ -20,15 +20,16 @@ env:
     - CLEARML_FILES_HOST
     - CLEARML_API_ACCESS_KEY
     - CLEARML_API_SECRET_KEY
+    - DIATOM_STORAGE_ID: "bt1cef26io7ofqin11u8"
     - DIATOM_SMOKE_TEST: "1"
     - DIATOM_EPOCHS: "1"
     - DIATOM_PATIENCE: "1"
     - DIATOM_NUM_WORKERS: "0"
     - DIATOM_FORCE_TRAIN: "1"
-    - DIATOM_SAVE_PATH: "/job/s3/bt15mrdpleurdj659o9m/yolov11/smoke/best_diatomnet_smoke.pth"
+    - DIATOM_SAVE_PATH: "/job/s3/bt1cef26io7ofqin11u8/yolov11/smoke/best_diatomnet_smoke.pth"
 cloud-instance-types:
   - gt4.1
 s3-mounts:
-  - bt15mrdpleurdj659o9m
+  - bt1cef26io7ofqin11u8
 flags:
   - attach-project-disk

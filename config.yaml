@@ -3,7 +3,7 @@ desc: Program description
 cmd: |
   python3 -m pip install --upgrade pip
   pip install -r requirements-cloud.txt
-  # python3 src/train_classifier.py  # закомментировать если не тренируете модель
+  # python3 src/train_classifier.py  # раскомментировать для обучения классификатора
   python3 src/evaluate.py
 inputs:
   - src/
@@ -12,8 +12,10 @@ outputs:
   - runs/
 env:
   docker: system-python-3-10
+  vars:
+    - DIATOM_STORAGE_ID: "bt1cef26io7ofqin11u8"
 cloud-instance-type: gt4.1 # T4, поменять на c1.4 если не тренируете модель
 s3-mounts:
-  - bt15mrdpleurdj659o9m  # например: abcdef1234567890
+  - bt1cef26io7ofqin11u8
 flags:
   - attach-project-disk
