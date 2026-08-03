@@ -1,0 +1,24 @@
+name: diatom-clearml-smoke
+desc: Проверка подключения DataSphere к ClearML без запуска обучения
+cmd: |
+  python3 -m pip install --upgrade pip
+  pip install -r requirements-cloud.txt
+  python3 src/clearml_smoke.py
+inputs:
+  - src/
+  - requirements-cloud.txt
+env:
+  docker: system-python-3-10
+  vars:
+    - CLEARML_ENABLED: "1"
+    - CLEARML_STRICT: "1"
+    - CLEARML_PROJECT: "Diatom Classification / Smoke"
+    - CLEARML_TASK_NAME: "datasphere-connectivity-smoke"
+    - CLEARML_OUTPUT_URI: "true"
+    - CLEARML_API_HOST
+    - CLEARML_WEB_HOST
+    - CLEARML_FILES_HOST
+    - CLEARML_API_ACCESS_KEY
+    - CLEARML_API_SECRET_KEY
+cloud-instance-types:
+  - c1.4
