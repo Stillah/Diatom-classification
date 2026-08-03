@@ -3,21 +3,37 @@ from __future__ import annotations
 import os
 import sys
 from pathlib import Path
+from typing import Any
 
-import cv2
 import numpy as np
 import pandas as pd
 import streamlit as st
-from PIL import Image
+from PIL import Image, ImageDraw
 
 ROOT = Path(__file__).resolve().parent
 SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
+# Root-level Streamlit secrets are also copied to environment variables here
+# so third-party libraries such as ClearML can read them reliably.
+try:
+    for secret_name in (
+        "CLEARML_API_ACCESS_KEY",
+        "CLEARML_API_SECRET_KEY",
+        "CLEARML_API_HOST",
+        "CLEARML_WEB_HOST",
+        "CLEARML_FILES_HOST",
+        "CLEARML_TASK_ID",
+        "DIATOM_DETECTOR",
+        "DIATOM_CLASSIFIER",
+    ):
+        if secret_name in st.secrets and secret_name not in os.environ:
+            os.environ[secret_name] = str(st.secrets[secret_name])
+except FileNotFoundError:
+    pass
+
 from clearml_utils import get_metrics  # noqa: E402
-from config import DEVICE  # noqa: E402
-from pipeline import DiatomPipeline  # noqa: E402
 
 st.set_page_config(
     page_title="Diatom classifier",
@@ -29,15 +45,23 @@ st.set_page_config(
 def _model_path(env_name: str, default: str) -> Path:
     value = os.getenv(env_name, default)
     path = Path(value).expanduser()
+    if not path.is_absolute():
+        path = ROOT / path
     if not path.exists():
         raise FileNotFoundError(
-            f"Файл модели не найден: {path}. Задайте переменную {env_name}."
+            f"Файл модели не найден: {path}. "
+            f"Добавьте файл в приложение или задайте секрет {env_name}."
         )
     return path
 
 
 @st.cache_resource(show_spinner=False)
-def load_pipeline() -> DiatomPipeline:
+def load_pipeline() -> Any:
+    # Heavy computer-vision imports are intentionally lazy. This lets the
+    # ClearML metrics page start even when model weights are not configured yet.
+    from config import DEVICE
+    from pipeline import DiatomPipeline
+
     detector = _model_path(
         "DIATOM_DETECTOR",
         "runs/detect/train/weights/best.pt",
@@ -63,8 +87,9 @@ def draw_predictions(
     image_rgb: np.ndarray,
     result: dict,
 ) -> np.ndarray:
-    annotated = image_rgb.copy()
-    height, width = annotated.shape[:2]
+    annotated = Image.fromarray(image_rgb.astype(np.uint8, copy=False)).copy()
+    draw = ImageDraw.Draw(annotated)
+    width, height = annotated.size
 
     for box, name, confidence in zip(
         result["boxes"],
@@ -78,19 +103,16 @@ def draw_predictions(
         y2 = max(0, min(y2, height - 1))
 
         label = f"{name}: {confidence:.2f}"
-        cv2.rectangle(annotated, (x1, y1), (x2, y2), (0, 220, 0), 3)
-        cv2.putText(
-            annotated,
+        draw.rectangle((x1, y1, x2, y2), outline=(0, 220, 0), width=3)
+        draw.text(
+            (x1, max(0, y1 - 18)),
             label,
-            (x1, max(20, y1 - 8)),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.6,
-            (0, 220, 0),
-            2,
-            cv2.LINE_AA,
+            fill=(0, 255, 0),
+            stroke_width=2,
+            stroke_fill=(0, 0, 0),
         )
 
-    return annotated
+    return np.asarray(annotated)
 
 
 st.title("🔬 Automatic Diatom Classification")
@@ -129,7 +151,8 @@ if mode == "Инференс":
     if uploaded:
         image = Image.open(uploaded).convert("RGB")
         image_rgb = np.asarray(image)
-        image_bgr = cv2.cvtColor(image_rgb, cv2.COLOR_RGB2BGR)
+        # Pipeline historically expects OpenCV-style BGR arrays.
+        image_bgr = image_rgb[:, :, ::-1].copy()
 
         try:
             with st.spinner("Выполняется инференс..."):
@@ -141,6 +164,7 @@ if mode == "Инференс":
                     use_classifier=use_classifier,
                 )
         except Exception as exc:
+            st.error("Не удалось запустить инференс")
             st.exception(exc)
         else:
             if not result["boxes"]:
@@ -186,10 +210,13 @@ else:
         value=default_task_id,
     ).strip()
 
-    if task_id:
+    if not task_id:
+        st.info("Введите ClearML Task ID, чтобы загрузить графики обучения.")
+    else:
         try:
             metrics = load_metrics(task_id)
         except Exception as exc:
+            st.error("Не удалось загрузить метрики ClearML")
             st.exception(exc)
         else:
             if metrics.empty:
