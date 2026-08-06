@@ -9,12 +9,12 @@ from typing import Any
 import cv2
 import numpy as np
 
-from config import DEVICE, OUTPUT_ROOT, SEED, TARGET_CLASSES
-from pipeline import DiatomPipeline
+from src.config import DEVICE, OUTPUT_ROOT, SEED, TARGET_CLASSES
+from src.models.pipeline import DiatomPipeline
 
 DETECTOR_PATH = OUTPUT_ROOT / "best_diatom.pt"
 CLASSIFIER_PATH = OUTPUT_ROOT / "best_diatomnet.pth"
-DATA_YAML = OUTPUT_ROOT / "data.yaml"
+DATA_YAML = OUTPUT_ROOT / "dataset_filtered.yaml"
 TEST_IMAGES_DIR = OUTPUT_ROOT / "test" / "images"
 TEST_LABELS_DIR = OUTPUT_ROOT / "test" / "labels"
 DEMO_OUTPUT_DIR = OUTPUT_ROOT / "demo_test"

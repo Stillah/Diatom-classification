@@ -1,8 +1,8 @@
 """Обучение pipeline: детекция (YOLOv11) + классификация видов (DiatomNet)."""
 
-from config import CLASSIFICATION_CONFIG, DEVICE, OUTPUT_ROOT, TRAIN_CONFIG
-from models.SC_Diatomnet.models import YOLOv11Baseline
-from pipeline import DiatomPipeline
+from src.config import CLASSIFICATION_CONFIG, DEVICE, OUTPUT_ROOT, DETECTION_CONFIG
+from src.models.SC_Diatomnet.model import YOLOv11Baseline
+from src.models.pipeline import DiatomPipeline
 
 if __name__ == "__main__":
     print("Training started")
@@ -14,8 +14,8 @@ if __name__ == "__main__":
 
     # 1. Обучение детектора и классификатора
     results = pipeline.train(
-        detection_cfg=TRAIN_CONFIG,
-        classification_cfg=CLASSIFICATION_CONFIG,
+        detection_cfg=DETECTION_CONFIG,
+        train_classifier=False
     )
 
     # 2. Валидация детектора

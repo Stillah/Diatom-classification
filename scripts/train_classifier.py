@@ -1,11 +1,9 @@
-"""Обучение классификатора видов (DiatomNet) отдельно от детектора."""
-
 from __future__ import annotations
 
 from pathlib import Path
 
-from config import CLASSIFICATION_CONFIG, DEVICE, OUTPUT_ROOT
-from pipeline import DiatomPipeline
+from src.config import CLASSIFICATION_CONFIG, DEVICE, OUTPUT_ROOT
+from src.models.pipeline import DiatomPipeline
 
 SAVE_PATH = Path(CLASSIFICATION_CONFIG["save_path"])
 
@@ -19,10 +17,13 @@ def main() -> None:
 
     print("Запуск обучения классификатора (DiatomNet)...")
     result = pipeline.train_classification(CLASSIFICATION_CONFIG)
+    pipeline.save(classifier_path=SAVE_PATH)
 
+    # Валидация через интерфейс pipeline
+    cls_metrics = pipeline.validate_classification()
     print("\n" + "=" * 60)
-    print(f"Обучение завершено. Лучшая val_acc: {result['best_val_acc']:.4f}")
-    print(f"Веса сохранены в: {result['save_path']}")
+    print("Classification val accuracy:", cls_metrics.get("accuracy", "N/A"))
+    print(f"Веса сохранены в: {SAVE_PATH}")
     print("=" * 60)
 
 

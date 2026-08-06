@@ -12,8 +12,9 @@ from PIL import Image
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from models.DiatomNet.architecture import DiatomNet
-from models.DiatomNet.dataset import (
+from src.models.DiatomNet.modules import DiatomNet
+from src.dataset import (
+    YoloCropDataset,
     build_classification_loaders,
     get_val_transform,
 )
@@ -185,7 +186,7 @@ class DiatomNetClassifier:
         if dataset_root is None:
             raise ValueError("dataset_root is required for validation")
 
-        from models.DiatomNet.dataset import YoloCropDataset
+        
 
         dataset = YoloCropDataset(Path(dataset_root) / split, transform=get_val_transform())
         loader = DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers)

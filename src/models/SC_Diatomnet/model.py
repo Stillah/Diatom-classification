@@ -2,7 +2,7 @@ from pathlib import Path
 from typing import Union, Optional, Dict, Any, List
 import numpy as np
 from ultralytics import YOLO
-from models.base import DetectModel
+from src.models.base import DetectModel
 
 class YOLOv11Baseline(DetectModel):
     """

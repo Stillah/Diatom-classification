@@ -1,10 +1,10 @@
 import numpy as np
 from pathlib import Path
 import torch 
-STORAGE_ID = "bt15mrdpleurdj659o9m"
+STORAGE_ID = "bt10d2p35vtasuqqfkps" # our dataset (see config.yaml for others)
 ROOT = Path(f"/job/s3/{STORAGE_ID}")
 DATASET_ROOT = ROOT / "raw"              # Folder containing images and annotations
-OUTPUT_ROOT = ROOT / "yolov11"           # Where YOLO dataset will be created
+OUTPUT_ROOT = ROOT                       # Where YOLO dataset will be created
 SEED = 42
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 np.random.seed(SEED)
@@ -23,8 +23,8 @@ TARGET_CLASSES = [
 class_to_id = {name: idx for idx, name in enumerate(TARGET_CLASSES)}
 
 
-TRAIN_CONFIG = {
-    "data": str(OUTPUT_ROOT / "data.yaml"),   # YOLO format dataset
+DETECTION_CONFIG = {
+    "data": str(OUTPUT_ROOT / "dataset_filtered.yaml"),   # YOLO format dataset
     "epochs": 100,
     "imgsz": 640,
     "batch": 16,
@@ -33,7 +33,17 @@ TRAIN_CONFIG = {
     "cos_lr": True,
     "warmup_epochs": 3,
     "project": "diatoms",
-    "name": "v1",
+    "name": "v2",
+    # Augmentation settings
+    "hsv_h": 0.015,
+    "hsv_s": 0.7,
+    "hsv_v": 0.4,
+    "degrees": 15.0,
+    "scale": 0.3,
+    "fliplr": 0.5,
+    "flipud": 0.5,
+    # Class balancing
+    "cls_pw": 0.8
 }
 
 CLASSIFICATION_CONFIG = {
@@ -47,3 +57,7 @@ CLASSIFICATION_CONFIG = {
     "num_workers": 2,
     "save_path": str(OUTPUT_ROOT / "best_diatomnet.pth"),
 }
+
+INPUT_SIZE = (128, 432)
+IMAGENET_MEAN = [0.485, 0.456, 0.406]
+IMAGENET_STD = [0.229, 0.224, 0.225]
