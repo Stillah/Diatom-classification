@@ -39,7 +39,10 @@ class DiatomNetClassifier:
         if weights_path is not None:
             self.load(weights_path)
 
-    def _build_loaders(self, train_cfg: Dict[str, Any]) -> tuple[DataLoader, DataLoader, DataLoader]:
+    def _build_loaders(
+        self,
+        train_cfg: Dict[str, Any],
+    ) -> tuple[DataLoader, DataLoader, DataLoader]:
         return build_classification_loaders(
             dataset_root=Path(train_cfg["dataset_root"]),
             batch_size=train_cfg.get("batch", 32),
@@ -47,19 +50,50 @@ class DiatomNetClassifier:
         )
 
     @staticmethod
+    def _macro_metrics(confusion: torch.Tensor) -> Dict[str, float]:
+        confusion = confusion.to(torch.float64)
+        true_positive = confusion.diag()
+        predicted = confusion.sum(dim=0)
+        actual = confusion.sum(dim=1)
+
+        precision = torch.where(
+            predicted > 0,
+            true_positive / predicted,
+            torch.zeros_like(true_positive),
+        )
+        recall = torch.where(
+            actual > 0,
+            true_positive / actual,
+            torch.zeros_like(true_positive),
+        )
+        f1 = torch.where(
+            precision + recall > 0,
+            2 * precision * recall / (precision + recall),
+            torch.zeros_like(precision),
+        )
+
+        return {
+            "macro_precision": float(precision.mean().item()),
+            "macro_recall": float(recall.mean().item()),
+            "macro_f1": float(f1.mean().item()),
+        }
+
+    @staticmethod
     def _run_epoch(
         model: DiatomNet,
         loader: DataLoader,
         criterion: nn.Module,
         device: str,
+        num_classes: int,
         optimizer: Optional[optim.Optimizer] = None,
-    ) -> tuple[float, float]:
+    ) -> Dict[str, float]:
         is_train = optimizer is not None
         model.train(is_train)
 
         running_loss = 0.0
         correct = 0
         total = 0
+        confusion = torch.zeros((num_classes, num_classes), dtype=torch.long)
 
         context = torch.enable_grad() if is_train else torch.no_grad()
         with context:
@@ -71,16 +105,109 @@ class DiatomNetClassifier:
                 loss = criterion(outputs, labels)
 
                 if is_train:
-                    optimizer.zero_grad()
+                    optimizer.zero_grad(set_to_none=True)
                     loss.backward()
                     optimizer.step()
 
-                running_loss += loss.item() * images.size(0)
                 predicted = outputs.argmax(dim=1)
-                total += labels.size(0)
+                batch_size = labels.size(0)
+                running_loss += loss.item() * batch_size
+                total += batch_size
                 correct += (predicted == labels).sum().item()
 
-        return running_loss / total, correct / total
+                indices = (
+                    labels.detach().cpu() * num_classes
+                    + predicted.detach().cpu()
+                )
+                confusion += torch.bincount(
+                    indices,
+                    minlength=num_classes * num_classes,
+                ).reshape(num_classes, num_classes)
+
+        if total == 0:
+            raise RuntimeError("DataLoader не содержит ни одного примера")
+
+        metrics = {
+            "loss": running_loss / total,
+            "accuracy": correct / total,
+        }
+        metrics.update(DiatomNetClassifier._macro_metrics(confusion))
+        return metrics
+
+    @staticmethod
+    def _clearml_context(
+        class_names: List[str],
+    ) -> tuple[Any | None, Any | None, Any | None]:
+        """Возвращает текущие Task, Logger и OutputModel, если Task инициализирован."""
+        try:
+            from clearml import OutputModel, Task
+
+            task = Task.current_task()
+            if task is None:
+                return None, None, None
+
+            logger = task.get_logger()
+            output_model = OutputModel(
+                task=task,
+                name="DiatomNet best checkpoint",
+                framework="PyTorch",
+                label_enumeration={
+                    label: index for index, label in enumerate(class_names)
+                },
+                config_dict={
+                    "architecture": "DiatomNet",
+                    "num_classes": len(class_names),
+                },
+            )
+            return task, logger, output_model
+        except ImportError:
+            return None, None, None
+
+    @staticmethod
+    def _report_epoch(
+        logger: Any,
+        epoch: int,
+        train_metrics: Dict[str, float],
+        val_metrics: Dict[str, float],
+        learning_rate: float,
+        best_val_accuracy: float,
+    ) -> None:
+        if logger is None:
+            return
+
+        metric_groups = {
+            "Loss": "loss",
+            "Accuracy": "accuracy",
+            "Macro precision": "macro_precision",
+            "Macro recall": "macro_recall",
+            "Macro F1": "macro_f1",
+        }
+        for title, key in metric_groups.items():
+            logger.report_scalar(
+                title=title,
+                series="train",
+                value=train_metrics[key],
+                iteration=epoch,
+            )
+            logger.report_scalar(
+                title=title,
+                series="validation",
+                value=val_metrics[key],
+                iteration=epoch,
+            )
+
+        logger.report_scalar(
+            title="Optimization",
+            series="learning rate",
+            value=learning_rate,
+            iteration=epoch,
+        )
+        logger.report_scalar(
+            title="Best metrics",
+            series="validation accuracy",
+            value=best_val_accuracy,
+            iteration=epoch,
+        )
 
     @staticmethod
     def _macro_precision_recall_f1(
@@ -114,7 +241,7 @@ class DiatomNetClassifier:
         )
 
     def train(self, train_cfg: Dict[str, Any]) -> Dict[str, Any]:
-        """Обучает классификатор на кропах из YOLO-датасета."""
+        """Обучает классификатор и логирует метрики/checkpoint в текущий ClearML Task."""
         train_loader, val_loader, _ = self._build_loaders(train_cfg)
 
         criterion = nn.CrossEntropyLoss()
@@ -134,46 +261,128 @@ class DiatomNetClassifier:
         epochs = train_cfg.get("epochs", 50)
         patience = train_cfg.get("patience", 10)
         save_path = Path(train_cfg.get("save_path", "best_diatomnet.pth"))
+        task, logger, output_model = self._clearml_context(self.class_names)
 
         best_val_acc = 0.0
+        best_epoch = 0
         epochs_without_improvement = 0
         history: Dict[str, list] = {
-            "train_loss": [], "train_acc": [],
-            "val_loss": [], "val_acc": [],
+            "train_loss": [],
+            "train_accuracy": [],
+            "train_macro_precision": [],
+            "train_macro_recall": [],
+            "train_macro_f1": [],
+            "val_loss": [],
+            "val_accuracy": [],
+            "val_macro_precision": [],
+            "val_macro_recall": [],
+            "val_macro_f1": [],
+            "learning_rate": [],
         }
 
-        for epoch in range(epochs):
-            print(f"\n[Classifier] Epoch {epoch + 1}/{epochs}")
+        for epoch_index in range(epochs):
+            epoch = epoch_index + 1
+            print(f"\n[Classifier] Epoch {epoch}/{epochs}")
             print("-" * 50)
 
-            train_loss, train_acc = self._run_epoch(
-                self.model, train_loader, criterion, self.device, optimizer,
+            train_metrics = self._run_epoch(
+                self.model,
+                train_loader,
+                criterion,
+                self.device,
+                self.num_classes,
+                optimizer,
             )
-            val_loss, val_acc = self._run_epoch(
-                self.model, val_loader, criterion, self.device,
+            val_metrics = self._run_epoch(
+                self.model,
+                val_loader,
+                criterion,
+                self.device,
+                self.num_classes,
             )
-            scheduler.step(val_loss)
+            scheduler.step(val_metrics["loss"])
+            learning_rate = float(optimizer.param_groups[0]["lr"])
 
-            history["train_loss"].append(train_loss)
-            history["train_acc"].append(train_acc)
-            history["val_loss"].append(val_loss)
-            history["val_acc"].append(val_acc)
+            for key, value in train_metrics.items():
+                history[f"train_{key}"].append(value)
+            for key, value in val_metrics.items():
+                history[f"val_{key}"].append(value)
+            history["learning_rate"].append(learning_rate)
 
-            print(f"Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.4f}")
-            print(f"Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.4f}")
-
-            if val_acc > best_val_acc:
-                best_val_acc = val_acc
+            improved = val_metrics["accuracy"] > best_val_acc
+            if improved:
+                best_val_acc = val_metrics["accuracy"]
+                best_epoch = epoch
                 epochs_without_improvement = 0
                 self.save(save_path)
                 print(f"Model saved with val_acc: {best_val_acc:.4f}")
+
+                if output_model is not None:
+                    try:
+                        output_model.update_weights(
+                            weights_filename=str(save_path),
+                            iteration=epoch,
+                            auto_delete_file=False,
+                            async_enable=False,
+                        )
+                    except Exception as exc:
+                        if logger is not None:
+                            logger.report_text(
+                                f"Не удалось загрузить checkpoint в ClearML: {exc}",
+                                print_console=False,
+                            )
             else:
                 epochs_without_improvement += 1
-                if epochs_without_improvement >= patience:
-                    print(f"Early stopping after {epoch + 1} epochs")
-                    break
 
-        return {"best_val_acc": best_val_acc, "history": history, "save_path": str(save_path)}
+            self._report_epoch(
+                logger=logger,
+                epoch=epoch,
+                train_metrics=train_metrics,
+                val_metrics=val_metrics,
+                learning_rate=learning_rate,
+                best_val_accuracy=best_val_acc,
+            )
+
+            print(
+                "Train: "
+                f"loss={train_metrics['loss']:.4f}, "
+                f"acc={train_metrics['accuracy']:.4f}, "
+                f"macro_f1={train_metrics['macro_f1']:.4f}"
+            )
+            print(
+                "Validation: "
+                f"loss={val_metrics['loss']:.4f}, "
+                f"acc={val_metrics['accuracy']:.4f}, "
+                f"macro_f1={val_metrics['macro_f1']:.4f}"
+            )
+
+            if not improved and epochs_without_improvement >= patience:
+                print(f"Early stopping after {epoch} epochs")
+                break
+
+        if logger is not None:
+            logger.report_single_value(
+                name="best_validation_accuracy",
+                value=best_val_acc,
+            )
+            logger.report_single_value(name="best_epoch", value=best_epoch)
+
+        if task is not None:
+            try:
+                task.upload_artifact(
+                    name="classification_history",
+                    artifact_object=history,
+                    wait_on_upload=True,
+                )
+            except Exception as exc:
+                print(f"Не удалось загрузить history в ClearML: {exc}")
+
+        return {
+            "best_val_acc": best_val_acc,
+            "best_epoch": best_epoch,
+            "history": history,
+            "save_path": str(save_path),
+        }
 
     def validate(
         self,
@@ -186,48 +395,25 @@ class DiatomNetClassifier:
         if dataset_root is None:
             raise ValueError("dataset_root is required for validation")
 
-        
-
-        dataset = YoloCropDataset(Path(dataset_root) / split, transform=get_val_transform())
-        loader = DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers)
+        dataset = YoloCropDataset(
+            Path(dataset_root) / split,
+            transform=get_val_transform(),
+        )
+        loader = DataLoader(
+            dataset,
+            batch_size=batch_size,
+            shuffle=False,
+            num_workers=num_workers,
+        )
         criterion = nn.CrossEntropyLoss()
 
-        self.model.eval()
-        running_loss = 0.0
-        correct = 0
-        total = 0
-        all_preds: List[int] = []
-        all_labels: List[int] = []
-
-        with torch.no_grad():
-            for images, labels in tqdm(loader, leave=False):
-                images = images.to(self.device)
-                labels = labels.to(self.device)
-
-                outputs = self.model(images)
-                loss = criterion(outputs, labels)
-
-                running_loss += loss.item() * images.size(0)
-                predicted = outputs.argmax(dim=1)
-                total += labels.size(0)
-                correct += (predicted == labels).sum().item()
-
-                all_preds.extend(predicted.cpu().tolist())
-                all_labels.extend(labels.cpu().tolist())
-
-        val_loss = running_loss / total
-        val_acc = correct / total
-        precision, recall, f1 = self._macro_precision_recall_f1(
-            all_labels, all_preds, self.num_classes,
+        return self._run_epoch(
+            self.model,
+            loader,
+            criterion,
+            self.device,
+            self.num_classes,
         )
-
-        return {
-            "loss": val_loss,
-            "accuracy": val_acc,
-            "precision_macro": precision,
-            "recall_macro": recall,
-            "f1_macro": f1,
-        }
 
     def classify(self, image: Union[str, Path, np.ndarray]) -> str:
         """Классифицирует одно изображение (кроп) и возвращает название вида."""
@@ -277,6 +463,8 @@ class DiatomNetClassifier:
 
         x1, y1, x2, y2 = [int(v) for v in box]
         crop = image_bgr[y1:y2, x1:x2]
+        if crop.size == 0:
+            raise ValueError(f"Пустой crop для bbox: {box}")
         crop_rgb = cv2.cvtColor(crop, cv2.COLOR_BGR2RGB)
         return self.predict(crop_rgb)
 

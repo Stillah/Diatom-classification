@@ -1,0 +1,43 @@
+name: diatom-train-smoke-ready
+desc: Одноэпоховый smoke-тест DiatomNet на реальной структуре classification_crops_padded
+cmd: |
+  python3 -m pip install --upgrade pip
+  pip install -r requirements-cloud.txt
+  python3 src/train_folder_classifier_v2.py
+inputs:
+  - src/
+  - requirements-cloud.txt
+env:
+  docker: system-python-3-10
+  vars:
+    - CLEARML_ENABLED: "1"
+    - CLEARML_STRICT: "1"
+    - CLEARML_PROJECT: "Diatom Classification / Smoke"
+    - CLEARML_TASK_NAME: "datasphere-training-smoke-folder-dataset"
+    - CLEARML_OUTPUT_URI: "true"
+    - CLEARML_API_HOST
+    - CLEARML_WEB_HOST
+    - CLEARML_FILES_HOST
+    - CLEARML_API_ACCESS_KEY
+    - CLEARML_API_SECRET_KEY
+    - DIATOM_STORAGE_ID: "bt1cef26io7ofqin11u8"
+    - DIATOM_DATASET_ROOT: "/job/s3/bt1cef26io7ofqin11u8/classification_crops_padded"
+    - DIATOM_MIN_CLASS_IMAGES: "5"
+    - DIATOM_MAX_CLASSES: "6"
+    - DIATOM_EXCLUDE_CLASSES: "PLESH-4-2025_образцы фоток,Martiy mutants"
+    - DIATOM_VAL_FRACTION: "0.2"
+    - DIATOM_TEST_FRACTION: "0.2"
+    - DIATOM_SEED: "42"
+    - DIATOM_SMOKE_TEST: "1"
+    - DIATOM_EPOCHS: "1"
+    - DIATOM_PATIENCE: "1"
+    - DIATOM_BATCH: "8"
+    - DIATOM_NUM_WORKERS: "0"
+    - DIATOM_FORCE_TRAIN: "1"
+    - DIATOM_SAVE_PATH: "/job/s3/bt1cef26io7ofqin11u8/yolov11/smoke/best_diatomnet_smoke.pth"
+cloud-instance-types:
+  - gt4.1
+s3-mounts:
+  - bt1cef26io7ofqin11u8
+flags:
+  - attach-project-disk
