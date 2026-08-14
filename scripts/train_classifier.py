@@ -5,9 +5,9 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from clearml_tracking import init_clearml_task
-from config import CLASSIFICATION_CONFIG, DEVICE, OUTPUT_ROOT
-from pipeline import DiatomPipeline
+from src.clearml_tracking import init_clearml_task
+from src.config import CLASSIFICATION_CONFIG, DEVICE, OUTPUT_ROOT
+from src.models.pipeline import DiatomPipeline
 
 
 def _env_flag(name: str, default: bool = False) -> bool:

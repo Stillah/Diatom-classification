@@ -3,10 +3,10 @@ desc: Program description
 cmd: |
   python3 -m pip install --upgrade pip
   pip install -r requirements-cloud.txt
-  # python3 src/train_classifier.py  # раскомментировать для обучения классификатора
-  python3 src/evaluate.py
+  python3 -m scripts.train_detector  # закомментировать если не тренируете модель
+  # python3 -m scripts.evaluate
 inputs:
-  - src/
+  - scripts/
   - requirements-cloud.txt
 outputs:
   - runs/
@@ -17,5 +17,7 @@ env:
 cloud-instance-type: gt4.1 # T4, поменять на c1.4 если не тренируете модель
 s3-mounts:
   - bt1cef26io7ofqin11u8
+  - bt15mrdpleurdj659o9m  # датасет с каггла
+  - bt10d2p35vtasuqqfkps  # наш размеченный датасет
 flags:
   - attach-project-disk

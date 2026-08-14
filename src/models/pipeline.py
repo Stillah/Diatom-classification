@@ -12,9 +12,9 @@ from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
 
-from config import OUTPUT_ROOT, TARGET_CLASSES
-from models.DiatomNet.classifier import DiatomNetClassifier
-from models.SC_Diatomnet.models import YOLOv11Baseline
+from src.config import OUTPUT_ROOT, TARGET_CLASSES
+from src.models.DiatomNet.model import DiatomNetClassifier
+from src.models.SC_Diatomnet.model import YOLOv11Baseline
 
 
 class DiatomPipeline:
@@ -53,8 +53,8 @@ class DiatomPipeline:
 
     def train(
         self,
-        detection_cfg: Dict[str, Any],
-        classification_cfg: Dict[str, Any],
+        detection_cfg: Dict[str, Any] | None = None,
+        classification_cfg: Dict[str, Any] | None = None,
         train_detector: bool = True,
         train_classifier: bool = True,
     ) -> Dict[str, Any]:
@@ -151,12 +151,14 @@ class DiatomPipeline:
 
     def save(
         self,
-        detector_path: Union[str, Path],
-        classifier_path: Union[str, Path],
+        detector_path: Union[str, Path, None] = None,
+        classifier_path: Union[str, Path, None] = None,
     ) -> None:
         """Сохраняет веса обеих моделей."""
-        self.detector.save(detector_path)
-        self.classifier.save(classifier_path)
+        if detector_path is not None:
+            self.detector.save(detector_path)
+        if classifier_path is not None:
+            self.classifier.save(classifier_path)
 
     def load(
         self,

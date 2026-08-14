@@ -1,14 +1,20 @@
 """Обучение pipeline: детекция (YOLOv11) + классификация видов (DiatomNet)."""
 
-from clearml_tracking import init_clearml_task, register_model_file
-from config import CLASSIFICATION_CONFIG, DEVICE, OUTPUT_ROOT, TARGET_CLASSES, TRAIN_CONFIG
-from models.SC_Diatomnet.models import YOLOv11Baseline
-from pipeline import DiatomPipeline
+from src.clearml_tracking import init_clearml_task, register_model_file
+from src.config import (
+    CLASSIFICATION_CONFIG,
+    DETECTION_CONFIG,
+    DEVICE,
+    OUTPUT_ROOT,
+    TARGET_CLASSES,
+)
+from src.models.SC_Diatomnet.model import YOLOv11Baseline
+from src.models.pipeline import DiatomPipeline
 
 
 def main() -> None:
     clearml_config = {
-        "detection": TRAIN_CONFIG,
+        "detection": DETECTION_CONFIG,
         "classification": CLASSIFICATION_CONFIG,
     }
     task = init_clearml_task(
@@ -24,7 +30,7 @@ def main() -> None:
         )
 
         results = pipeline.train(
-            detection_cfg=TRAIN_CONFIG,
+            detection_cfg=DETECTION_CONFIG,
             classification_cfg=CLASSIFICATION_CONFIG,
         )
 

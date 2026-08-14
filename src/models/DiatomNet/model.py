@@ -1,5 +1,3 @@
-"""Обёртка DiatomNet для обучения и инференса классификации."""
-
 from __future__ import annotations
 
 from pathlib import Path
@@ -14,8 +12,9 @@ from PIL import Image
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from models.DiatomNet.architecture import DiatomNet
-from models.DiatomNet.dataset import (
+from src.models.DiatomNet.modules import DiatomNet
+from src.dataset import (
+    YoloCropDataset,
     build_classification_loaders,
     get_val_transform,
 )
@@ -210,6 +209,37 @@ class DiatomNetClassifier:
             iteration=epoch,
         )
 
+    @staticmethod
+    def _macro_precision_recall_f1(
+        y_true: List[int],
+        y_pred: List[int],
+        num_classes: int,
+    ) -> tuple[float, float, float]:
+        """Считает precision/recall/f1 по каждому классу и усредняет (macro)."""
+        precisions, recalls, f1s = [], [], []
+
+        for c in range(num_classes):
+            tp = sum(1 for t, p in zip(y_true, y_pred) if t == c and p == c)
+            fp = sum(1 for t, p in zip(y_true, y_pred) if t != c and p == c)
+            fn = sum(1 for t, p in zip(y_true, y_pred) if t == c and p != c)
+
+            precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
+            recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
+            f1 = (
+                2 * precision * recall / (precision + recall)
+                if (precision + recall) > 0 else 0.0
+            )
+
+            precisions.append(precision)
+            recalls.append(recall)
+            f1s.append(f1)
+
+        return (
+            sum(precisions) / num_classes,
+            sum(recalls) / num_classes,
+            sum(f1s) / num_classes,
+        )
+
     def train(self, train_cfg: Dict[str, Any]) -> Dict[str, Any]:
         """Обучает классификатор и логирует метрики/checkpoint в текущий ClearML Task."""
         train_loader, val_loader, _ = self._build_loaders(train_cfg)
@@ -364,8 +394,6 @@ class DiatomNetClassifier:
         """Оценивает модель на указанном сплите YOLO-датасета."""
         if dataset_root is None:
             raise ValueError("dataset_root is required for validation")
-
-        from models.DiatomNet.dataset import YoloCropDataset
 
         dataset = YoloCropDataset(
             Path(dataset_root) / split,

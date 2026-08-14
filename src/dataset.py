@@ -11,12 +11,7 @@ import torch
 from PIL import Image
 from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
-
-
-INPUT_SIZE = (128, 432)
-IMAGENET_MEAN = [0.485, 0.456, 0.406]
-IMAGENET_STD = [0.229, 0.224, 0.225]
-
+from src.config import INPUT_SIZE, IMAGENET_MEAN, IMAGENET_STD
 
 def get_train_transform() -> transforms.Compose:
     return transforms.Compose([
