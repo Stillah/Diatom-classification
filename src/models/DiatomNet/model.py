@@ -15,6 +15,9 @@ from tqdm import tqdm
 from src.models.DiatomNet.modules import DiatomNet
 from src.dataset import (
     YoloCropDataset,
+    _read_yolo_data_config,
+    _resolve_selected_class_ids,
+    _resolve_trainvaltest,
     build_classification_loaders,
     get_val_transform,
 )
@@ -33,6 +36,7 @@ class DiatomNetClassifier:
         self.device = device
         self.num_classes = num_classes
         self.class_names = class_names or [str(i) for i in range(num_classes)]
+        self.selected_classes: Optional[List[int]] = None
         self.model = DiatomNet(num_classes=num_classes).to(device)
         self._transform = get_val_transform()
 
@@ -40,11 +44,28 @@ class DiatomNetClassifier:
             self.load(weights_path)
 
     def _build_loaders(self, train_cfg: Dict[str, Any]) -> tuple[DataLoader, DataLoader, DataLoader]:
+        dataset_source = train_cfg.get("data", train_cfg.get("dataset_root"))
+        if dataset_source is None:
+            raise ValueError("Classification config must include 'data' or 'dataset_root'")
+
         return build_classification_loaders(
-            dataset_root=Path(train_cfg["dataset_root"]),
+            dataset_root=dataset_source,
             batch_size=train_cfg.get("batch", 32),
             num_workers=train_cfg.get("num_workers", 2),
+            classes=train_cfg.get("classes"),
         )
+
+    def _resolve_class_names_from_cfg(self, train_cfg: Dict[str, Any]) -> List[str]:
+        dataset_source = train_cfg.get("data", train_cfg.get("dataset_root"))
+        if dataset_source is None:
+            return self.class_names
+
+        names = _read_yolo_data_config(dataset_source).get("names") or []
+        selected_classes = _resolve_selected_class_ids(dataset_source, train_cfg.get("classes"))
+        if not selected_classes:
+            return self.class_names
+
+        return [str(names[i]) for i in selected_classes]
 
     @staticmethod
     def _run_epoch(
@@ -66,6 +87,16 @@ class DiatomNetClassifier:
             for images, labels in tqdm(loader, leave=False):
                 images = images.to(device)
                 labels = labels.to(device)
+
+                if labels.numel() == 0:
+                    continue
+
+                num_classes = model.fc.out_features
+                if labels.min().item() < 0 or labels.max().item() >= num_classes:
+                    raise ValueError(
+                        f"Invalid class labels for this model: min={labels.min().item()}, max={labels.max().item()}, "
+                        f"expected range [0, {num_classes - 1}]"
+                    )
 
                 outputs = model(images)
                 loss = criterion(outputs, labels)
@@ -115,7 +146,59 @@ class DiatomNetClassifier:
 
     def train(self, train_cfg: Dict[str, Any]) -> Dict[str, Any]:
         """Обучает классификатор на кропах из YOLO-датасета."""
+        selected_class_names = self._resolve_class_names_from_cfg(train_cfg)
+        selected_classes = _resolve_selected_class_ids(
+            train_cfg.get("data", train_cfg.get("dataset_root")),
+            train_cfg.get("classes"),
+        )
+
+        if selected_classes:
+            self.selected_classes = selected_classes
+            self.num_classes = len(selected_classes)
+            self.class_names = selected_class_names
+            self.model = DiatomNet(num_classes=self.num_classes).to(self.device)
+        else:
+            self.selected_classes = None
+
+        dataset_source = train_cfg.get("data", train_cfg.get("dataset_root"))
+        train_split = _resolve_trainvaltest(dataset_source, "train")
+        val_split = _resolve_trainvaltest(dataset_source, "val")
+
+        train_images_dir = train_split
+        val_images_dir = val_split
+        train_labels_dir = train_images_dir.parent.parent / "labels" / train_images_dir.name if train_images_dir.parent.name == "images" else train_images_dir / "labels"
+        val_labels_dir = val_images_dir.parent.parent / "labels" / val_images_dir.name if val_images_dir.parent.name == "images" else val_images_dir / "labels"
+
+        train_class_dirs = sorted(p for p in train_images_dir.iterdir() if p.is_dir()) if train_images_dir.exists() else []
+        val_class_dirs = sorted(p for p in val_images_dir.iterdir() if p.is_dir()) if val_images_dir.exists() else []
+        train_label_class_dirs = sorted(p for p in train_labels_dir.iterdir() if p.is_dir()) if train_labels_dir.exists() else []
+        val_label_class_dirs = sorted(p for p in val_labels_dir.iterdir() if p.is_dir()) if val_labels_dir.exists() else []
+
+        train_images_total = sum(len(list(p.glob("*"))) for p in train_class_dirs)
+        val_images_total = sum(len(list(p.glob("*"))) for p in val_class_dirs)
+        train_labels_total = sum(len(list(p.glob("*.txt"))) for p in train_label_class_dirs)
+        val_labels_total = sum(len(list(p.glob("*.txt"))) for p in val_label_class_dirs)
+
+        print(f"[Classifier] Train split: {train_images_dir}")
+        print(f"[Classifier] Train class folders used: {len(train_class_dirs)}")
+        print(f"[Classifier] Train label folders used: {len(train_label_class_dirs)}")
+        print(f"[Classifier] Train images counted: {train_images_total}")
+        print(f"[Classifier] Train labels counted: {train_labels_total}")
+        print(f"[Classifier] Val split: {val_images_dir}")
+        print(f"[Classifier] Val class folders used: {len(val_class_dirs)}")
+        print(f"[Classifier] Val label folders used: {len(val_label_class_dirs)}")
+        print(f"[Classifier] Val images counted: {val_images_total}")
+        print(f"[Classifier] Val labels counted: {val_labels_total}")
+
         train_loader, val_loader, _ = self._build_loaders(train_cfg)
+
+        print(f"[Classifier] Train batches: {len(train_loader)}")
+        print(f"[Classifier] Val batches: {len(val_loader)}")
+
+        train_samples = sum(len(dataset) for dataset in [train_loader.dataset])
+        val_samples = sum(len(dataset) for dataset in [val_loader.dataset])
+        print(f"[Classifier] Loaded train samples: {train_samples}")
+        print(f"[Classifier] Loaded val samples: {val_samples}")
 
         criterion = nn.CrossEntropyLoss()
         optimizer = optim.Adam(
@@ -181,16 +264,30 @@ class DiatomNetClassifier:
         split: str = "val",
         batch_size: int = 32,
         num_workers: int = 2,
+        classes: Optional[List[Union[int, str]]] = None,
     ) -> Dict[str, float]:
         """Оценивает модель на указанном сплите YOLO-датасета."""
         if dataset_root is None:
             raise ValueError("dataset_root is required for validation")
 
-        
+        resolved_classes = classes if classes is not None else self.selected_classes
+        if resolved_classes is None:
+            resolved_classes = _resolve_selected_class_ids(dataset_root, None)
 
-        dataset = YoloCropDataset(Path(dataset_root) / split, transform=get_val_transform())
+        split_dir = _resolve_trainvaltest(dataset_root, split)
+        dataset = YoloCropDataset(
+            split_dir,
+            transform=get_val_transform(),
+            class_ids=resolved_classes,
+        )
         loader = DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers)
         criterion = nn.CrossEntropyLoss()
+
+        if resolved_classes is not None and self.num_classes != len(resolved_classes):
+            raise ValueError(
+                f"Model num_classes ({self.num_classes}) does not match selected validation classes ({len(resolved_classes)}): "
+                f"{resolved_classes}."
+            )
 
         self.model.eval()
         running_loss = 0.0

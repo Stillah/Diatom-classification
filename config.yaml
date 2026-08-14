@@ -3,10 +3,11 @@ desc: Program description
 cmd: |
   python3 -m pip install --upgrade pip
   pip install -r requirements-cloud.txt
-  python3 -m scripts.train_detector  # закомментировать если не тренируете модель
+  python3 -m scripts.train_classifier  # закомментировать если не тренируете модель
   # python3 -m scripts.evaluate
 inputs:
   - scripts/
+  - src/
   - requirements-cloud.txt
 outputs:
   - runs/

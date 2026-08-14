@@ -3,11 +3,16 @@
 from __future__ import annotations
 
 import random
+import sys
 from pathlib import Path
 from typing import Any
 
 import cv2
 import numpy as np
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.config import DEVICE, OUTPUT_ROOT, SEED, TARGET_CLASSES
 from src.models.pipeline import DiatomPipeline
@@ -182,7 +187,7 @@ def evaluate_detection(pipeline: DiatomPipeline) -> dict[str, Any]:
 
 
 def evaluate_classification(pipeline: DiatomPipeline) -> dict[str, float]:
-    return pipeline.validate_classification(dataset_root=OUTPUT_ROOT, split="test")
+    return pipeline.validate_classification(dataset_root=DATA_YAML, split="test")
 
 
 def evaluate_pipeline_end_to_end(pipeline: DiatomPipeline) -> dict[str, float]:

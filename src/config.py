@@ -43,19 +43,23 @@ DETECTION_CONFIG = {
     "fliplr": 0.5,
     "flipud": 0.5,
     # Class balancing
-    "cls_pw": 0.8
+    "cls_pw": 0.8,
+    # Classes to consider
+    "classes": [1, 2, 6, 7, 8, 12, 17, 20, 23, 27, 30, 35, 38, 39, 41, 42]
 }
 
 CLASSIFICATION_CONFIG = {
-    "dataset_root": str(OUTPUT_ROOT),   # YOLO-сплиты train/val/test с кропами
+    "data": str(OUTPUT_ROOT / "dataset_filtered.yaml"),   # YOLO format dataset
     "epochs": 50,
     "batch": 32,
     "lr": 0.001,
     "weight_decay": 1e-4,
     "patience": 10,
     "scheduler_patience": 2,
-    "num_workers": 2,
-    "save_path": str(OUTPUT_ROOT / "best_diatomnet.pth"),
+    "num_workers": 4,
+    # Classes to consider
+    "classes": [1, 2, 6, 7, 8, 12, 17, 20, 23, 27, 30, 35, 38, 39, 41, 42],
+    "save_path": str(OUTPUT_ROOT / "best_diatomnet_classifier.pth"),
 }
 
 INPUT_SIZE = (128, 432)

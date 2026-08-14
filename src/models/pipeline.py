@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
 
-from src.config import OUTPUT_ROOT, TARGET_CLASSES
+from src.config import CLASSIFICATION_CONFIG, OUTPUT_ROOT, TARGET_CLASSES
 from src.models.DiatomNet.model import DiatomNetClassifier
 from src.models.SC_Diatomnet.model import YOLOv11Baseline
 
@@ -80,9 +80,11 @@ class DiatomPipeline:
         self,
         dataset_root: Optional[Union[str, Path]] = None,
         split: str = "val",
+        classes: Optional[List[Union[int, str]]] = None,
     ) -> Dict[str, float]:
-        root = dataset_root or OUTPUT_ROOT
-        return self.classifier.validate(dataset_root=root, split=split)
+        root = dataset_root or CLASSIFICATION_CONFIG.get("data", OUTPUT_ROOT)
+        resolved_classes = classes if classes is not None else CLASSIFICATION_CONFIG.get("classes")
+        return self.classifier.validate(dataset_root=root, split=split, classes=resolved_classes)
 
     def predict(
         self,
