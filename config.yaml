@@ -13,8 +13,11 @@ outputs:
   - runs/
 env:
   docker: system-python-3-10
+  vars:
+    - DIATOM_STORAGE_ID: "bt1cef26io7ofqin11u8"
 cloud-instance-type: gt4.1 # T4, поменять на c1.4 если не тренируете модель
 s3-mounts:
+  - bt1cef26io7ofqin11u8
   - bt15mrdpleurdj659o9m  # датасет с каггла
   - bt10d2p35vtasuqqfkps  # наш размеченный датасет
 flags:
