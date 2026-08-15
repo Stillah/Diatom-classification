@@ -1,5 +1,9 @@
 """Обучение pipeline: детекция (YOLOv11) + классификация видов (DiatomNet)."""
 
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 from src.clearml_tracking import init_clearml_task, register_model_file
 from src.config import (
     CLASSIFICATION_CONFIG,
@@ -8,6 +12,8 @@ from src.config import (
     OUTPUT_ROOT,
     TARGET_CLASSES,
 )
+
+from src.config import CLASSIFICATION_CONFIG, DEVICE, OUTPUT_ROOT, DETECTION_CONFIG
 from src.models.SC_Diatomnet.model import YOLOv11Baseline
 from src.models.pipeline import DiatomPipeline
 

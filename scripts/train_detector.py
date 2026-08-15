@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from src.config import DEVICE, DETECTION_CONFIG, OUTPUT_ROOT
 from src.models.pipeline import DiatomPipeline

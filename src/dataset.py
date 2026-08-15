@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Any, Callable, Optional, Union
 
 import cv2
 import numpy as np
 import torch
+import yaml
 from PIL import Image
 from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
@@ -17,6 +18,7 @@ def get_train_transform() -> transforms.Compose:
     return transforms.Compose([
         transforms.Resize(INPUT_SIZE),
         transforms.RandomHorizontalFlip(p=0.5),
+        transforms.RandomVerticalFlip(p=0.5),
         transforms.RandomRotation(degrees=15),
         transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1),
         transforms.ToTensor(),
@@ -54,6 +56,101 @@ def crop_yolo_bbox(image: np.ndarray, xc: float, yc: float, w: float, h: float) 
     return crop
 
 
+def _resolve_split_dirs(data_source: Union[str, Path, dict[str, Any]]) -> tuple[Path, Path, Path]:
+    """Resolves YOLO dataset config into train/val/test image directories."""
+    data_cfg: dict[str, Any]
+    data_path: Optional[Path] = None
+
+    if isinstance(data_source, dict):
+        data_cfg = data_source
+        root_path = Path(data_cfg.get("path") or ".")
+    else:
+        data_path = Path(data_source)
+        if data_path.is_dir():
+            return (
+                data_path / "train",
+                data_path / "val",
+                data_path / "test",
+            )
+
+        if data_path.suffix.lower() not in {".yaml", ".yml"}:
+            raise ValueError(f"Unsupported dataset source: {data_source}")
+
+        if not data_path.exists():
+            raise FileNotFoundError(f"Dataset config not found: {data_path}")
+
+        with open(data_path, encoding="utf-8") as f:
+            data_cfg = yaml.safe_load(f) or {}
+        root_path = Path(data_cfg.get("path") or data_path.parent)
+
+    train_path = data_cfg.get("train", "train")
+    val_path = data_cfg.get("val", "val")
+    test_path = data_cfg.get("test", "test")
+
+    def _to_path(value: Union[str, Path]) -> Path:
+        candidate = Path(value)
+        return candidate if candidate.is_absolute() else root_path / candidate
+
+    return (
+        _to_path(train_path),
+        _to_path(val_path),
+        _to_path(test_path),
+    )
+
+
+def _resolve_trainvaltest(data_source: Union[str, Path, dict[str, Any]], split: str) -> Path:
+    train_path, val_path, test_path = _resolve_split_dirs(data_source)
+    split_dirs = {"train": train_path, "val": val_path, "test": test_path}
+    if split not in split_dirs:
+        raise ValueError(f"Unsupported split '{split}'. Expected one of: {sorted(split_dirs)}")
+    return split_dirs[split]
+
+
+def _read_yolo_data_config(data_source: Union[str, Path, dict[str, Any]]) -> dict[str, Any]:
+    if isinstance(data_source, dict):
+        return data_source
+
+    data_path = Path(data_source)
+    if data_path.is_dir():
+        for candidate in (data_path / "dataset_filtered.yaml", data_path / "data.yaml", data_path / "dataset.yaml"):
+            if candidate.exists():
+                data_path = candidate
+                break
+        else:
+            return {}
+
+    if not data_path.exists():
+        return {}
+
+    with open(data_path, encoding="utf-8") as f:
+        cfg = yaml.safe_load(f) or {}
+    return cfg if isinstance(cfg, dict) else {}
+
+
+def _resolve_selected_class_ids(data_source: Union[str, Path, dict[str, Any]], classes: Optional[list[int] | list[str]]) -> Optional[list[int]]:
+    if classes is None:
+        return None
+
+    selected: list[int] = []
+    seen: set[int] = set()
+    names = _read_yolo_data_config(data_source).get("names") or []
+
+    for cls in classes:
+        if isinstance(cls, str):
+            if cls not in names:
+                raise ValueError(f"Unknown class name '{cls}' in dataset YAML names: {names}")
+            class_id = names.index(cls)
+        else:
+            class_id = int(cls)
+
+        if class_id in seen:
+            continue
+        seen.add(class_id)
+        selected.append(class_id)
+
+    return selected
+
+
 class YoloCropDataset(Dataset):
     """
     Строит датасет классификации из YOLO-сплита (images/ + labels/).
@@ -64,29 +161,71 @@ class YoloCropDataset(Dataset):
         self,
         split_dir: Path,
         transform: Optional[Callable] = None,
+        class_ids: Optional[list[int]] = None,
     ):
         self.split_dir = Path(split_dir)
-        self.images_dir = self.split_dir / "images"
-        self.labels_dir = self.split_dir / "labels"
-        self.transform = transform or get_val_transform()
+        self.images_dir = self.split_dir
+
+        if self.split_dir.parent.name == "images":
+            self.labels_dir = self.split_dir.parent.parent / "labels" / self.split_dir.name
+        else:
+            self.labels_dir = self.split_dir / "labels"
+
+        self.class_ids = set(class_ids) if class_ids is not None else None
+        self.class_remap = None
+        if self.class_ids is not None:
+            self.class_remap = {original_id: idx for idx, original_id in enumerate(class_ids)}
+
+        self.transform = transform
         self.samples: list[tuple[Path, int, tuple[float, float, float, float]]] = []
 
         if not self.labels_dir.exists():
             raise FileNotFoundError(f"Labels directory not found: {self.labels_dir}")
 
-        for label_path in sorted(self.labels_dir.glob("*.txt")):
-            image_path = _find_image(self.images_dir, label_path.stem)
-            if image_path is None:
-                continue
+        image_class_dirs = {
+            child.name: child for child in sorted(self.images_dir.iterdir()) if child.is_dir()
+        }
+        label_class_dirs = {
+            child.name: child for child in sorted(self.labels_dir.iterdir()) if child.is_dir()
+        }
 
-            with open(label_path, encoding="utf-8") as f:
-                for line in f:
-                    parts = line.strip().split()
-                    if len(parts) < 5:
+        if image_class_dirs and label_class_dirs:
+            for class_name, image_dir in image_class_dirs.items():
+                label_dir = label_class_dirs.get(class_name)
+                if label_dir is None:
+                    continue
+                for label_path in sorted(label_dir.rglob("*.txt")):
+                    image_path = _find_image(image_dir, label_path.stem)
+                    if image_path is None:
                         continue
-                    class_id = int(parts[0])
-                    bbox = tuple(float(v) for v in parts[1:5])
-                    self.samples.append((image_path, class_id, bbox))
+                    with open(label_path, encoding="utf-8") as f:
+                        for line in f:
+                            parts = line.strip().split()
+                            if len(parts) < 5:
+                                continue
+                            class_id = int(parts[0])
+                            if self.class_ids is not None and class_id not in self.class_ids:
+                                continue
+                            bbox = tuple(float(v) for v in parts[1:5])
+                            remapped_class_id = self.class_remap[class_id] if self.class_remap is not None else class_id
+                            self.samples.append((image_path, remapped_class_id, bbox))
+        else:
+            for label_path in sorted(self.labels_dir.glob("*.txt")):
+                image_path = _find_image(self.images_dir, label_path.stem)
+                if image_path is None:
+                    continue
+
+                with open(label_path, encoding="utf-8") as f:
+                    for line in f:
+                        parts = line.strip().split()
+                        if len(parts) < 5:
+                            continue
+                        class_id = int(parts[0])
+                        if self.class_ids is not None and class_id not in self.class_ids:
+                            continue
+                        bbox = tuple(float(v) for v in parts[1:5])
+                        remapped_class_id = self.class_remap[class_id] if self.class_remap is not None else class_id
+                        self.samples.append((image_path, remapped_class_id, bbox))
 
         if not self.samples:
             raise ValueError(f"No classification samples found in {self.split_dir}")
@@ -112,14 +251,17 @@ class YoloCropDataset(Dataset):
 
 
 def build_classification_loaders(
-    dataset_root: Path,
+    dataset_root: Union[str, Path, dict[str, Any]],
     batch_size: int = 32,
-    num_workers: int = 2,
+    num_workers: int = 4,
+    classes: Optional[list[int] | list[str]] = None,
 ) -> tuple[DataLoader, DataLoader, DataLoader]:
     """Создаёт train/val/test DataLoader'ы из YOLO-датасета."""
-    train_ds = YoloCropDataset(dataset_root / "train", transform=get_train_transform())
-    val_ds = YoloCropDataset(dataset_root / "val", transform=get_val_transform())
-    test_ds = YoloCropDataset(dataset_root / "test", transform=get_val_transform())
+    train_path, val_path, test_path = _resolve_split_dirs(dataset_root)
+    selected_classes = _resolve_selected_class_ids(dataset_root, classes)
+    train_ds = YoloCropDataset(train_path, transform=get_train_transform(), class_ids=selected_classes)
+    val_ds = YoloCropDataset(val_path, transform=get_val_transform(), class_ids=selected_classes)
+    test_ds = YoloCropDataset(test_path, transform=get_val_transform(), class_ids=selected_classes)
 
     train_loader = DataLoader(
         train_ds, batch_size=batch_size, shuffle=True, num_workers=num_workers,

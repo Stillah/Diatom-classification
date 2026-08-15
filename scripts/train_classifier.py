@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import os
+import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.clearml_tracking import init_clearml_task
 from src.config import CLASSIFICATION_CONFIG, DEVICE, OUTPUT_ROOT
