@@ -7,11 +7,11 @@ from pathlib import Path
 
 from clearml_tracking import init_clearml_task
 from config import DEVICE, OUTPUT_ROOT
-from models.DiatomNet.dataset_folder import (
+from src.models.DiatomNet.dataset_folder import (
     discover_folder_classes,
     folder_class_counts,
 )
-from models.DiatomNet.folder_classifier_fixed import FolderDiatomNetClassifier
+from src.models.DiatomNet.folder_classifier_fixed import FolderDiatomNetClassifier
 
 
 def _env_flag(name: str, default: bool = False) -> bool:

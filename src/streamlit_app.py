@@ -8,12 +8,11 @@ from typing import Any
 import numpy as np
 import pandas as pd
 import streamlit as st
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFont
 
-ROOT = Path(__file__).resolve().parent
-SRC = ROOT / "src"
-if str(SRC) not in sys.path:
-    sys.path.insert(0, str(SRC))
+APP_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = APP_DIR.parent
+sys.path.insert(0, str(PROJECT_ROOT))
 
 # Root-level Streamlit secrets are also copied to environment variables here
 # so third-party libraries such as ClearML can read them reliably.
@@ -46,7 +45,7 @@ def _model_path(env_name: str, default: str) -> Path:
     value = os.getenv(env_name, default)
     path = Path(value).expanduser()
     if not path.is_absolute():
-        path = ROOT / path
+        path = PROJECT_ROOT / path
     if not path.exists():
         raise FileNotFoundError(
             f"Файл модели не найден: {path}. "
@@ -59,16 +58,16 @@ def _model_path(env_name: str, default: str) -> Path:
 def load_pipeline() -> Any:
     # Heavy computer-vision imports are intentionally lazy. This lets the
     # ClearML metrics page start even when model weights are not configured yet.
-    from config import DEVICE
-    from pipeline import DiatomPipeline
+    from src.config import DEVICE
+    from src.models.pipeline import DiatomPipeline
 
     detector = _model_path(
         "DIATOM_DETECTOR",
-        "runs/detect/train/weights/best.pt",
+        "model_weights/best_detector.pt",
     )
     classifier = _model_path(
         "DIATOM_CLASSIFIER",
-        "best_diatomnet.pth",
+        "model_weights/best_classifier.pth",
     )
     pipeline = DiatomPipeline(device=DEVICE)
     pipeline.load(
@@ -103,12 +102,13 @@ def draw_predictions(
         y2 = max(0, min(y2, height - 1))
 
         label = f"{name}: {confidence:.2f}"
-        draw.rectangle((x1, y1, x2, y2), outline=(0, 220, 0), width=3)
+        draw.rectangle((x1, y1, x2, y2), outline=(0, 220, 0), width=15)
         draw.text(
-            (x1, max(0, y1 - 18)),
+            (x1, max(0, y1 - 100)),
             label,
-            fill=(0, 255, 0),
-            stroke_width=2,
+            font=ImageFont.truetype("arial.ttf", 100),
+            fill=(155, 55, 0),
+            stroke_width=1,
             stroke_fill=(0, 0, 0),
         )
 
@@ -132,15 +132,15 @@ if mode == "Инференс":
         step=0.05,
     )
     det_iou = st.sidebar.slider(
-        "IoU для NMS",
+        "Intersection over Union для Non-Maximum Suppression",
         min_value=0.10,
         max_value=0.90,
         value=0.45,
         step=0.05,
     )
     use_classifier = st.sidebar.checkbox(
-        "Использовать DiatomNet",
-        value=True,
+        "Использовать отдельный DiatomNet (обычно работает хуже)",
+        value=False,
     )
 
     uploaded = st.file_uploader(
@@ -199,7 +199,7 @@ if mode == "Инференс":
                     )
                 st.dataframe(
                     pd.DataFrame(rows),
-                    use_container_width=True,
+                    width='stretch',
                     hide_index=True,
                 )
 
@@ -235,4 +235,4 @@ else:
                     st.line_chart(metric_frame)
 
                 with st.expander("Сырые значения"):
-                    st.dataframe(metrics, use_container_width=True)
+                    st.dataframe(metrics, width='stretch')

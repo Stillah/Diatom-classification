@@ -83,7 +83,7 @@ distill_model: null
 dis: 6.0
 box: 7.5
 cls: 0.5
-cls_pw: 0.8
+cls_pw: 0.0
 dfl: 1.5
 pose: 12.0
 kobj: 1.0
