@@ -11,4 +11,3 @@ datasphere project job execute -p bt122c1et3ueiori55qf -c configs/config.yaml
 ```bash
 streamlit run src/streamlit_app.py
 ```
-

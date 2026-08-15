@@ -556,6 +556,46 @@ class DiatomNetClassifier:
             "probabilities": probs.cpu().numpy().tolist(),
         }
 
+    def predict_batch(
+        self,
+        images: List[Union[str, Path, np.ndarray]],
+    ) -> List[Dict[str, Any]]:
+        """Классифицирует список изображений одним батчем."""
+        if not images:
+            return []
+
+        self.model.eval()
+        transformed = []
+        for image in images:
+            if isinstance(image, (str, Path)):
+                image_bgr = cv2.imread(str(image))
+                if image_bgr is None:
+                    raise RuntimeError(f"Cannot read image: {image}")
+                image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
+            else:
+                image_rgb = image.astype(np.uint8) if image.dtype != np.uint8 else image
+            transformed.append(Image.fromarray(image_rgb))
+
+        tensor = torch.stack([self._transform(img) for img in transformed]).to(self.device)
+        with torch.no_grad():
+            logits = self.model(tensor)
+            probs = torch.softmax(logits, dim=1)
+            class_ids = probs.argmax(dim=1).cpu().tolist()
+
+        results: List[Dict[str, Any]] = []
+        for index, class_id in enumerate(class_ids):
+            class_id = int(class_id)
+            probs_row = probs[index]
+            results.append(
+                {
+                    "class_id": class_id,
+                    "class_name": self.class_names[class_id],
+                    "confidence": float(probs_row[class_id].item()),
+                    "probabilities": probs_row.cpu().numpy().tolist(),
+                }
+            )
+        return results
+
     def predict_crop(
         self,
         image: Union[str, Path, np.ndarray],

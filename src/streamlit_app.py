@@ -143,43 +143,55 @@ if mode == "Инференс":
         value=False,
     )
 
-    uploaded = st.file_uploader(
-        "Загрузите микроскопическое изображение",
-        type=["png", "jpg", "jpeg", "tif", "tiff"],
-    )
 
-    if uploaded:
-        image = Image.open(uploaded).convert("RGB")
-        image_rgb = np.asarray(image)
-        # Pipeline historically expects OpenCV-style BGR arrays.
-        image_bgr = image_rgb[:, :, ::-1].copy()
+    uploaded = st.file_uploader(
+        "Загрузите одно или несколько изображений диатомий",
+        type=["png", "jpg", "jpeg", "tif", "tiff"],
+        accept_multiple_files=True,
+    )
+    run_batch = st.button("Запустить прогноз", width="stretch", type="primary")
+
+    if uploaded and run_batch:
+        batch_images = []
+        for uploaded_file in uploaded:
+            image = Image.open(uploaded_file).convert("RGB")
+            image_rgb = np.asarray(image)
+            batch_images.append(image_rgb[:, :, ::-1].copy())
 
         try:
-            with st.spinner("Выполняется инференс..."):
+            with st.spinner("Выполняется предсказание..."):
                 pipeline = load_pipeline()
-                result = pipeline.predict(
-                    image_bgr,
+                results = pipeline.predict_batch(
+                    batch_images,
                     det_conf=det_conf,
                     det_iou=det_iou,
                     use_classifier=use_classifier,
                 )
         except Exception as exc:
-            st.error("Не удалось запустить инференс")
+            st.error("Не удалось запустить предсказание")
             st.exception(exc)
         else:
-            if not result["boxes"]:
-                st.warning("Диатомеи не обнаружены")
-                st.image(image_rgb, caption="Исходное изображение")
-            else:
-                annotated = draw_predictions(image_rgb, result)
-                left, right = st.columns(2)
-                with left:
-                    st.image(image_rgb, caption="Исходное изображение")
-                with right:
-                    st.image(annotated, caption="Результат pipeline")
+            detection_rows = []
+            image_views = []
 
-                rows = []
-                for index, (name, confidence, det_confidence, box) in enumerate(
+            for index, (uploaded_file, result) in enumerate(zip(uploaded, results), start=1):
+                image_rgb = np.asarray(Image.open(uploaded_file).convert("RGB"))
+                if result["boxes"]:
+                    annotated = draw_predictions(image_rgb, result)
+                else:
+                    annotated = image_rgb
+
+                image_views.append(
+                    {
+                        "index": index,
+                        "name": uploaded_file.name,
+                        "original": image_rgb,
+                        "annotated": annotated,
+                        "has_detections": bool(result["boxes"]),
+                    }
+                )
+
+                for box_index, (name, confidence, det_confidence, box) in enumerate(
                     zip(
                         result["class_names"],
                         result["confidences"],
@@ -188,20 +200,59 @@ if mode == "Инференс":
                     ),
                     start=1,
                 ):
-                    rows.append(
+                    detection_rows.append(
                         {
-                            "object": index,
-                            "species": name,
+                            "image": uploaded_file.name,
+                            "object": box_index,
+                            "class_name": name,
                             "classification_confidence": confidence,
                             "detection_confidence": det_confidence,
                             "bbox": [round(value, 1) for value in box],
                         }
                     )
-                st.dataframe(
-                    pd.DataFrame(rows),
-                    width='stretch',
-                    hide_index=True,
+
+            detection_df = pd.DataFrame(detection_rows)
+            if detection_df.empty:
+                summary_df = pd.DataFrame(
+                    columns=[
+                        "class_name",
+                        "count",
+                        "average classification confidence",
+                        "average detection confidence",
+                    ]
                 )
+            else:
+                summary_df = (
+                    detection_df.groupby("class_name", as_index=False)
+                    .agg(
+                        count=("class_name", "size"),
+                        average_classification_confidence=("classification_confidence", "mean"),
+                        average_detection_confidence=("detection_confidence", "mean"),
+                    )
+                    .rename(
+                        columns={
+                            "average_classification_confidence": "average classification confidence",
+                            "average_detection_confidence": "average detection confidence",
+                        }
+                    )
+                    .sort_values("count", ascending=False)
+                )
+
+            st.subheader("Class summary")
+            st.dataframe(summary_df, width='stretch', hide_index=True)
+
+            st.subheader("All detections")
+            st.dataframe(detection_df, width='stretch', hide_index=True)
+
+            st.subheader("Images")
+            for start in range(0, len(image_views), 2):
+                row_items = image_views[start:start + 2]
+                cols = st.columns(2)
+                for col_index, item in enumerate(row_items):
+                    with cols[col_index]:
+                        st.image(item["annotated"], caption=f"{item['index']}. {item['name']}")
+                        if not item["has_detections"]:
+                            st.caption("No diatoms detected")
 
 else:
     default_task_id = os.getenv("CLEARML_TASK_ID", "")
@@ -236,3 +287,4 @@ else:
 
                 with st.expander("Сырые значения"):
                     st.dataframe(metrics, width='stretch')
+
