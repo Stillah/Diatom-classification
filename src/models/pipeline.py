@@ -13,7 +13,7 @@ from typing import Any, Dict, List, Optional, Union
 import numpy as np
 from PIL import Image
 
-from src.config import CLASSIFICATION_CONFIG, OUTPUT_ROOT, TARGET_CLASSES
+from src.config import CLASSIFICATION_CONFIG, OUTPUT_ROOT
 from src.models.DiatomNet.model import DiatomNetClassifier
 from src.models.SC_Diatomnet.model import YOLOv11Baseline
 
@@ -29,7 +29,7 @@ class DiatomPipeline:
         class_names: Optional[List[str]] = None,
     ):
         self.device = device
-        self.class_names = class_names or TARGET_CLASSES
+        self.class_names = class_names or []
 
         self.detector = detector or YOLOv11Baseline(device=device)
         self.classifier = classifier or DiatomNetClassifier(

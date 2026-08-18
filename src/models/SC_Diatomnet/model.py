@@ -54,7 +54,7 @@ class YOLOv11Baseline(DetectModel):
         """
         if self.model is None:
             # Load a default detection model
-            self.load("yolo11n.pt")   # or yolo11s.pt, etc.
+            self.load("yolo11m.pt")   # or yolo11s.pt, etc.
 
         if "device" not in train_cfg:
             train_cfg["device"] = self.device

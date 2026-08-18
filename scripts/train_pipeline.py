@@ -13,7 +13,6 @@ from src.config import (
     TARGET_CLASSES,
 )
 
-from src.config import CLASSIFICATION_CONFIG, DEVICE, OUTPUT_ROOT, DETECTION_CONFIG
 from src.models.SC_Diatomnet.model import YOLOv11Baseline
 from src.models.pipeline import DiatomPipeline
 

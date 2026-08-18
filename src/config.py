@@ -14,30 +14,27 @@ SEED = 42
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 np.random.seed(SEED)
 
-# Six species used in the paper
-TARGET_CLASSES = [
-    "Encyonema silesiacum",
-    "Fragilaria recapitellata",
-    "Gomphonema olivaceum",
-    "Navicula cryptotenella",
-    "Navicula reichardtiana",
-    "Planothidium lanceolatum",
-]
+
+OUR_DATASET_CLASSES = ['Amphora affinis', 'Amphora copulata', 'Amphora ovalis', 'Amphora pediculus', 'Aneumastus apiculatus', 'Aneumastus tusculus', 'Aulacoseira ambigua', 'Aulacoseira crassipunctata', 'Aulacoseira granulata', 'Aulacoseira granulata var angustissima', 'Aulacoseira italica', 'Aulacoseira subarctica', 'Cavinula scutelloides', 'Cocconeis placentula', 'Cymatopleuta elliptica', 'Cymbella neocistula', 'Cymbopleura inaequalis', 'Diploneis elliptica', 'Encyonema eglinense', 'Epithemia adnata', 'Epithemia frickei', 'Epithemia turguda', 'Gyrosigma attenuatum', 'Iconella bifrons', 'Iconella hibernica', 'Karayevia clevei', 'Lindavia affinis', 'Lindavia praetermissa', 'Martiy mutants', 'Navicula radiosa', 'Pantoscekiella ocellata', 'Paraplaconeis minor', 'Paraplaconeis placentula', 'Pinnularia gracilloides var triandulata', 'Placoneis gastrum', 'Pseudostaurosira brevistriata', 'Pseudostaurosira parasitica', 'Pseudostaurosira subconstricta', 'Staurosira construens', 'Staurosirella martyi', 'Staurosirella ovata', 'Stephanodiscus alpinus', 'Stephanodiscus neoastrea', 'Surirella librile', 'Ulnaria biceps', 'Ulnaria ulna']
+KAGGLE_DATASET_CLASSES = ['Achnanthidium biasolettianum', 'Achnanthidium minutissimum', 'Adlafia minuscula', 'Amphora pediculus', 'Caloneis lancettula', 'Cocconeis pseudolineata', 'Cymbella cantonatii', 'Cymbella excisa', 'Cymbella excisa var. subcapitata', 'Denticula kuetzingii', 'Diatoma mesodon', 'Diatoma moniliformis', 'Encyonema silesiacum', 'Encyonema ventricosum', 'Epithemia argus', 'Fragilaria recapitellata', 'Frustulia vulgaris', 'Gomphonema calcifugum', 'Gomphonema drutelingense', 'Gomphonema micropus', 'Gomphonema minutum', 'Gomphonema olivaceum', 'Gomphonema pumilum', 'Gomphonema pumilum var. rigidum', 'Gomphonema supertergestinum', 'Gomphonema tergestinum', 'Halamphora paraveneta', 'Halamphora veneta', 'Hantzschiana abundans', 'Humidophila contenta', 'Humidophila perpusilla', 'Meridion circulare', 'Navicula capitatoradiata', 'Navicula cryptocephala', 'Navicula cryptotenella', 'Navicula cryptotenelloides', 'Navicula gregaria', 'Navicula moskalii', 'Navicula reichardtiana', 'Navicula tripunctata', 'Navicula trivialis', 'Navicula upsaliensis', 'Nitzschia archibaldii', 'Nitzschia hantzschiana', 'Nitzschia linearis', 'Pantocsekiella ocellata', 'Pinnularia brebissonii', 'Planothidium frequentissimum', 'Planothidium lanceolatum', 'Rhoicosphenia abbreviata', 'Surirella brebissonii var. kuetzingii']
+
+# Change if using kaggle dataset
+TARGET_CLASSES = OUR_DATASET_CLASSES
 
 # Create class-to-id mapping
 class_to_id = {name: idx for idx, name in enumerate(TARGET_CLASSES)}
 
 DETECTION_CONFIG = {
-    "data": str(OUTPUT_ROOT / "dataset_filtered.yaml"),  # YOLO format dataset
+    "data": str(OUTPUT_ROOT / "dataset_synthetic.yaml"),  # YOLO format dataset
     "epochs": 100,
     "imgsz": 640,
-    "batch": 16,
+    "batch": 64,
     "lr0": 0.001,
-    "patience": 10,
+    "patience": 3,
     "cos_lr": True,
-    "warmup_epochs": 3,
+    "warmup_epochs": 1,
     "project": "diatoms",
-    "name": "v2",
+    "name": "v3",
     # Augmentation settings
     "hsv_h": 0.015,
     "hsv_s": 0.7,
@@ -46,14 +43,10 @@ DETECTION_CONFIG = {
     "scale": 0.3,
     "fliplr": 0.5,
     "flipud": 0.5,
-    # Class balancing
-    "cls_pw": 0.8,
-    # Classes to consider
-    "classes": [1, 2, 6, 7, 8, 12, 17, 20, 23, 27, 30, 35, 38, 39, 41, 42]
+    "cls_pw": 0.0, # Class balancing
+    "freeze": 2, # Freeze N backbone layers
+    # "classes": [1, 2, 6, 7, 8, 12, 17, 20, 23, 27, 30, 35, 38, 39, 41, 42] # Classes to consider
 }
-
-# Backward compatibility for scripts still using TRAIN_CONFIG.
-TRAIN_CONFIG = DETECTION_CONFIG
 
 CLASSIFICATION_CONFIG = {
     "data": str(OUTPUT_ROOT / "dataset_filtered.yaml"),   # YOLO format dataset

@@ -3,21 +3,31 @@ desc: Program description
 cmd: |
   python3 -m pip install --upgrade pip
   pip install -r requirements-cloud.txt
-  python3 -m scripts.train_classifier  # закомментировать если не тренируете модель
-  # python3 -m scripts.evaluate
+  python3 -m scripts.train_detector  # закомментировать если не тренируете модель
 inputs:
   - scripts/
   - src/
   - requirements-cloud.txt
+  - .env
 outputs:
   - runs/
 env:
   docker: system-python-3-10
   vars:
-    - DIATOM_STORAGE_ID: "bt1cef26io7ofqin11u8"
+    - DIATOM_STORAGE_ID: "bt10d2p35vtasuqqfkps"
+    - CLEARML_ENABLED: "1"
+    - CLEARML_STRICT: "1"
+    - CLEARML_PROJECT: "Diatom Classification"
+    - CLEARML_TASK_NAME: "YOLOv11 detector training"
+    - CLEARML_OUTPUT_URI: "true"
+    - CLEARML_API_HOST
+    - CLEARML_WEB_HOST
+    - CLEARML_FILES_HOST
+    - CLEARML_API_ACCESS_KEY
+    - CLEARML_API_SECRET_KEY
+
 cloud-instance-type: gt4.1 # T4, поменять на c1.4 если не тренируете модель
 s3-mounts:
-  - bt1cef26io7ofqin11u8
   - bt15mrdpleurdj659o9m  # датасет с каггла
   - bt10d2p35vtasuqqfkps  # наш размеченный датасет
 flags:
