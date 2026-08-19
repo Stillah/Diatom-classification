@@ -117,7 +117,7 @@ def draw_predictions(
     try:
         font = ImageFont.truetype("arial.ttf", 100)
     except IOError:
-        font = ImageFont.load_default()
+        font = ImageFont.load_default(size=100)
 
     for box, name, confidence in zip(
         result["boxes"],
