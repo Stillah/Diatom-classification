@@ -21,7 +21,7 @@ load_dotenv()
 
 # ---------- Imports from project ----------
 from src.clearml_utils import get_metrics
-from src.config import OUR_DATASET_CLASSES, TARGET_CLASSES
+from src.config import OUR_DATASET_CLASSES, TARGET_CLASSES, KAGGLE_DATASET_CLASSES, DEFAULT_DETECTABLE_CLASSES
 
 # Copy Streamlit secrets to environment for third‑party libraries
 try:
@@ -182,7 +182,7 @@ def main() -> None:
             step=0.05,
         )
         det_iou = st.sidebar.slider(
-            "Intersection over Union для Non-Maximum Suppression",
+            "Чувствительность к пересекающимся bounding box (выше - меньше)",
             min_value=0.10,
             max_value=0.90,
             value=0.45,
@@ -219,8 +219,17 @@ def main() -> None:
             )
             selected_detector_path = None
             
-        with st.expander("Распозноваемые классы", expanded=False):
-            st.markdown("\n".join(f"- **{c}**" for c in TARGET_CLASSES))
+        with st.expander("Распознаваемые классы"):
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.markdown("**detector_default.pt/detector_synthetic.pt**")
+                st.write("\n".join(f"- **{c}**" for c in DEFAULT_DETECTABLE_CLASSES))
+            with col2:
+                st.markdown("**detector_full_synthetic_dataset.pt**")
+                st.write("\n".join(f"- **{c}**" for c in OUR_DATASET_CLASSES))
+            with col3:
+                st.markdown("**detector_kaggle_dataset.pt**")
+                st.write("\n".join(f"- **{c}**" for c in KAGGLE_DATASET_CLASSES))
 
         # ---------- File upload & inference ----------
         uploaded = st.file_uploader(
