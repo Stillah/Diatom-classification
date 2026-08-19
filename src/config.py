@@ -19,7 +19,7 @@ OUR_DATASET_CLASSES = ['Amphora affinis', 'Amphora copulata', 'Amphora ovalis', 
 KAGGLE_DATASET_CLASSES = ['Achnanthidium biasolettianum', 'Achnanthidium minutissimum', 'Adlafia minuscula', 'Amphora pediculus', 'Caloneis lancettula', 'Cocconeis pseudolineata', 'Cymbella cantonatii', 'Cymbella excisa', 'Cymbella excisa var. subcapitata', 'Denticula kuetzingii', 'Diatoma mesodon', 'Diatoma moniliformis', 'Encyonema silesiacum', 'Encyonema ventricosum', 'Epithemia argus', 'Fragilaria recapitellata', 'Frustulia vulgaris', 'Gomphonema calcifugum', 'Gomphonema drutelingense', 'Gomphonema micropus', 'Gomphonema minutum', 'Gomphonema olivaceum', 'Gomphonema pumilum', 'Gomphonema pumilum var. rigidum', 'Gomphonema supertergestinum', 'Gomphonema tergestinum', 'Halamphora paraveneta', 'Halamphora veneta', 'Hantzschiana abundans', 'Humidophila contenta', 'Humidophila perpusilla', 'Meridion circulare', 'Navicula capitatoradiata', 'Navicula cryptocephala', 'Navicula cryptotenella', 'Navicula cryptotenelloides', 'Navicula gregaria', 'Navicula moskalii', 'Navicula reichardtiana', 'Navicula tripunctata', 'Navicula trivialis', 'Navicula upsaliensis', 'Nitzschia archibaldii', 'Nitzschia hantzschiana', 'Nitzschia linearis', 'Pantocsekiella ocellata', 'Pinnularia brebissonii', 'Planothidium frequentissimum', 'Planothidium lanceolatum', 'Rhoicosphenia abbreviata', 'Surirella brebissonii var. kuetzingii']
 DEFAULT_DETECTABLE_CLASSES = ['Amphora copulata', 'Amphora ovalis', 'Aulacoseira ambigua', 'Aulacoseira crassipunctata', 'Aulacoseira granulata', 'Cavinula scutelloides', 'Diploneis elliptica', 'Epithemia frickei', 'Iconella bifrons', 'Lindavia praetermissa', 'Pantoscekiella ocellata', 'Pseudostaurosira brevistriata', 'Staurosira construens', 'Staurosirella martyi', 'Stephanodiscus alpinus', 'Stephanodiscus neoastrea']
 # Change if using kaggle dataset
-TARGET_CLASSES = OUR_DATASET_CLASSES
+TARGET_CLASSES = KAGGLE_DATASET_CLASSES
 
 # Create class-to-id mapping
 class_to_id = {name: idx for idx, name in enumerate(TARGET_CLASSES)}
@@ -49,7 +49,7 @@ DETECTION_CONFIG = {
 }
 
 CLASSIFICATION_CONFIG = {
-    "data": str(OUTPUT_ROOT / "dataset_filtered.yaml"),   # YOLO format dataset
+    "data": str(OUTPUT_ROOT / "data.yaml"),   # YOLO format dataset
     "epochs": 50,
     "batch": 32,
     "lr": 0.001,
@@ -58,8 +58,8 @@ CLASSIFICATION_CONFIG = {
     "scheduler_patience": 2,
     "num_workers": 4,
     # Classes to consider
-    "classes": [1, 2, 6, 7, 8, 12, 17, 20, 23, 27, 30, 35, 38, 39, 41, 42],
-    "save_path": str(OUTPUT_ROOT / "best_diatomnet_classifier.pth"),
+    # "classes": [1, 2, 6, 7, 8, 12, 17, 20, 23, 27, 30, 35, 38, 39, 41, 42],
+    "save_path": str(OUTPUT_ROOT / "kaggle_diatomnet_classifier.pth"),
 }
 
 INPUT_SIZE = (128, 432)

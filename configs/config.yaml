@@ -3,7 +3,7 @@ desc: Program description
 cmd: |
   python3 -m pip install --upgrade pip
   pip install -r requirements-cloud.txt
-  python3 -m scripts.train_detector  # закомментировать если не тренируете модель
+  python3 -m scripts.train_classifier  # закомментировать если не тренируете модель
 inputs:
   - scripts/
   - src/
@@ -14,7 +14,8 @@ outputs:
 env:
   docker: system-python-3-10
   vars:
-    - DIATOM_STORAGE_ID: "bt10d2p35vtasuqqfkps"
+    - DIATOM_STORAGE_ID: "bt15mrdpleurdj659o9m"
+    - DIATOM_FORCE_TRAIN: True
     - CLEARML_ENABLED: "1"
     - CLEARML_STRICT: "1"
     - CLEARML_PROJECT: "Diatom Classification"

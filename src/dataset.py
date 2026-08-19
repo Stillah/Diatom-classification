@@ -169,7 +169,7 @@ class YoloCropDataset(Dataset):
         if self.split_dir.parent.name == "images":
             self.labels_dir = self.split_dir.parent.parent / "labels" / self.split_dir.name
         else:
-            self.labels_dir = self.split_dir / "labels"
+            self.labels_dir = self.split_dir.parent / "labels"
 
         self.class_ids = set(class_ids) if class_ids is not None else None
         self.class_remap = None
