@@ -9,7 +9,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.clearml_tracking import init_clearml_task
-from src.config import CLASSIFICATION_CONFIG, DEVICE, OUTPUT_ROOT
+from src.config import CLASSIFICATION_CONFIG, DEVICE, OUTPUT_ROOT, TARGET_CLASSES
 from src.models.pipeline import DiatomPipeline
 
 
@@ -54,7 +54,7 @@ def main() -> None:
     )
 
     try:
-        pipeline = DiatomPipeline(device=DEVICE)
+        pipeline = DiatomPipeline(device=DEVICE, class_names=TARGET_CLASSES)
 
         print("Запуск обучения классификатора (DiatomNet)...")
         print(f"Параметры запуска: {train_config}")
