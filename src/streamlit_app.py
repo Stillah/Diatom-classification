@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import re
 import sys
+import base64
 from pathlib import Path
 from typing import Any
 from collections import defaultdict
@@ -147,11 +148,96 @@ def draw_predictions(
 # ---------- Main UI ----------
 def main() -> None:
     st.set_page_config(
-        page_title="Diatom classifier",
-        page_icon="🔬",
+        page_title="Классификатор диатомовых водорослей",
+        page_icon="🍃",
         layout="wide",
     )
-    st.title("🔬 Автоматическая классификация диатомий")
+    logo_path = Path(".streamlit/yandex_cloud_logo.svg")
+
+    # Encode SVG to base64
+    if logo_path.exists():
+        with open(logo_path, "rb") as f:
+            svg_data = f.read()
+            b64 = base64.b64encode(svg_data).decode()
+        img_tag = f'<img src="data:image/svg+xml;base64,{b64}" alt="Logo" style="height:28px; width:auto;">'
+    else:
+        # Fallback: show a placeholder text or icon
+        img_tag = '<span style="font-size:1.8rem;">🔬</span>'
+
+    # Now use img_tag inside your HTML:
+    st.markdown(
+        f"""
+        <style>
+            /* 1. Hide the default Streamlit header */
+            header[data-testid="stHeader"] {{
+                display: none;
+            }}
+
+            /* 2. Fixed header at the very top */
+            .custom-header {{
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 60px;                /* adjust as needed */
+                z-index: 1000;               /* higher than sidebar */
+                background: #ffffff;
+                padding: 0.5rem 2rem;
+                border-bottom: 2px solid #e6e6e6;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+                box-sizing: border-box;
+            }}
+
+            /* 3. Move the sidebar down below the header */
+            section[data-testid="stSidebar"] {{
+                top: 60px !important;        /* same as header height */
+                height: calc(100vh - 60px) !important;
+                padding-top: 0 !important;   /* remove extra padding */
+            }}
+
+            /* 4. Push main content down */
+            .main {{
+                padding-top: 80px !important;
+            }}
+
+            /* 5. Header internal layout (unchanged) */
+            .header-left {{
+                display: flex;
+                align-items: center;
+                gap: 20px;
+            }}
+            .header-left img {{
+                height: 30px;
+                width: auto;
+                display: block;
+            }}
+            .header-left .title {{
+                font-size: 1.8rem;
+                font-weight: 600;
+                color: #262730;
+            }}
+            .header-right {{
+                transform: translateX(-50px);
+                font-size: 1.15rem;
+                color: #6b6b6b;
+                text-align: right;
+            }}
+        </style>
+        <div class="custom-header">
+            <div class="header-left">
+                {img_tag}
+            </div>
+            <div class="header-right">
+                Институт Географии РАН х Центр технологий для общества Yandex Cloud
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.title("🍃 Автоматическая классификация диатомий")
 
     # Initialise session state variables
     if "detection_rows" not in st.session_state:
