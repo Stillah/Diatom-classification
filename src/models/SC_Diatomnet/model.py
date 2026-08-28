@@ -196,3 +196,11 @@ class YOLOv11Baseline(DetectModel):
         self.model = YOLO(str(weights), task=self.task)
         if self.device != "cpu":
             self.model.to(self.device)
+
+    def get_class_names(self) -> List[str]:
+        """Get the names of the classes the model can predict."""
+        if self.model is None:
+            raise RuntimeError("Model not loaded. Call load() first.")
+
+        return list(self.model.names.values())
+        

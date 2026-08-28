@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 import os
 import re
 import sys
@@ -77,26 +78,21 @@ def load_pipeline(detector_path: Path | None = None) -> Any:
     if detector_path is None:
         detector_path = _model_path(
             "DIATOM_DETECTOR",
-            "model_weights/best_detector.pt",
+            "model_weights/detectors/detector_default.pt",
         )
     else:
         detector_path = detector_path.resolve()
         if not detector_path.exists():
             raise FileNotFoundError(f"Выбранный детектор не найден: {detector_path}")
 
-    classifier_path = _model_path(
-        "DIATOM_CLASSIFIER",
-        "model_weights/best_classifier.pth",
-    )
+    detector_name = Path(detector_path).stem
+    classifier_path = Path(f"model_weights/classifiers/{detector_name}/classifier.pth")
 
     print(f"Loading detector from {detector_path}")
     print(f"Loading classifier from {classifier_path}")
 
-    pipeline = DiatomPipeline(device=DEVICE, class_names=OUR_DATASET_CLASSES)
-    pipeline.load(
-        detector_path=detector_path,
-        classifier_path=classifier_path,
-    )
+    pipeline = DiatomPipeline(detector_path=detector_path, classifier_path=classifier_path, device=DEVICE)
+
     return pipeline
 
 
@@ -257,6 +253,7 @@ def main() -> None:
         "Режим",
         ["Предсказание", "Метрики обучения"],
     )
+    target_classes = deepcopy(TARGET_CLASSES)
 
     if mode == "Предсказание":
         # ---------- Sidebar controls ----------
@@ -356,6 +353,7 @@ def main() -> None:
                         det_iou=det_iou,
                         use_classifier=use_classifier,
                     )
+                    target_classes = pipeline.class_names
             except Exception as exc:
                 st.error("Не удалось запустить предсказание")
                 st.exception(exc)
@@ -474,7 +472,7 @@ def main() -> None:
                                 '<span style="font-size: 1.5em; color: #86888A;">**Добавить класс**</span>',
                                 unsafe_allow_html=True,
                             )
-                            available_add = [c for c in TARGET_CLASSES if c not in classes_this]
+                            available_add = [c for c in target_classes if c not in classes_this]
                             if not available_add:
                                 st.info("Все классы уже добавлены для этого изображения.")
                             else:

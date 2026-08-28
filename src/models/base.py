@@ -92,6 +92,11 @@ class DetectModel(ABC):
         """Load model weights from a file or pretrained identifier."""
         pass
 
+    @abstractmethod
+    def get_class_names(self) -> List[str]:
+        """Get the names of the classes the model can predict."""
+        pass
+
 class ClassificationModel(Protocol):
 
     @abstractmethod

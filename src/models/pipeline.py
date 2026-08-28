@@ -23,19 +23,20 @@ class DiatomPipeline:
 
     def __init__(
         self,
+        detector_path: Path,
+        classifier_path: Path,
         device: str = "cpu",
-        detector: Optional[YOLOv11Baseline] = None,
-        classifier: Optional[DiatomNetClassifier] = None,
-        class_names: Optional[List[str]] = None,
     ):
         self.device = device
-        self.class_names = class_names or []
 
-        self.detector = detector or YOLOv11Baseline(device=device)
-        self.classifier = classifier or DiatomNetClassifier(
+        self.detector = YOLOv11Baseline(device=device, model_path=detector_path)
+        self.class_names = self.detector.get_class_names()
+
+        self.classifier = DiatomNetClassifier(
             device=device,
             num_classes=len(self.class_names),
             class_names=self.class_names,
+            weights_path=classifier_path
         )
 
     def train_detection(self, train_cfg: Dict[str, Any]) -> Dict[str, Any]:
@@ -276,3 +277,6 @@ class DiatomPipeline:
             self.detector.load(detector_path)
         if classifier_path is not None:
             self.classifier.load(classifier_path)
+
+        # Классы как у детектора
+        self.class_names = self.detector.get_class_names()
