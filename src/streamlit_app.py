@@ -233,7 +233,7 @@ def main() -> None:
         """,
         unsafe_allow_html=True,
     )
-    st.title("🍃 Автоматическая классификация диатомий")
+    st.title("🍃 Автоматическая классификация диатомей")
 
     # Initialise session state variables
     if "detection_rows" not in st.session_state:
@@ -316,7 +316,7 @@ def main() -> None:
 
         # ---------- File upload & inference ----------
         uploaded = st.file_uploader(
-            "Загрузите одно или несколько изображений диатомий",
+            "Загрузите одно или несколько изображений диатомей",
             type=["png", "jpg", "jpeg", "tif", "tiff"],
             accept_multiple_files=True,
         )
